@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>每日强势股池 × 买点区域 V2.1 选股器</title>
+<style>
+:root{--bg:#f5f6fa;--card:#fff;--line:#e3e7f0;--text:#1a1d29;--sub:#6b7280;
+  --red:#e03131;--blue:#1c7ed6;--amber:#f08c00;--green:#2f9e44;--purple:#7950f2}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif;padding:16px}
+.wrap{max-width:1240px;margin:0 auto}
+.header{background:linear-gradient(135deg,#1c3d6e,#2f6db3);color:#fff;border-radius:12px;padding:18px 22px;margin-bottom:14px}
+.header h1{font-size:19px;margin-bottom:6px}
+.header .sub{font-size:12.5px;opacity:.85;line-height:1.6}
+.ctrl{display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 16px;margin-bottom:14px}
+.ctrl label{font-size:13px;color:var(--sub)}
+.ctrl input[type=date]{border:1px solid var(--line);border-radius:6px;padding:6px 10px;font-size:14px}
+.ctrl button{border:1px solid var(--line);background:#f8f9fc;border-radius:6px;padding:6px 14px;cursor:pointer;font-size:13px}
+.ctrl button:hover{background:#e7f1fb}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 16px}
+.stat .label{font-size:12px;color:var(--sub);margin-bottom:4px}
+.stat .num{font-size:24px;font-weight:800}
+.stat.s .num{color:var(--red)} .stat.a .num{color:var(--blue)} .stat.b .num{color:var(--amber)} .stat.c .num{color:var(--green)}
+.sec{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-bottom:14px}
+.sec h2{font-size:15px;margin-bottom:2px;display:flex;align-items:center;gap:8px}
+.sec h2 .tag{font-size:11px;color:var(--sub);font-weight:400}
+.tbl{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:8px}
+.tbl thead th{background:#f8f9fc;color:var(--sub);text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);font-size:11px;white-space:nowrap}
+.tbl tbody td{padding:6px 8px;border-bottom:1px solid #f0f2f7;white-space:nowrap}
+.tbl tbody tr:hover{background:#f7f9ff}
+.badge{display:inline-block;padding:1px 7px;border-radius:8px;font-size:11px;font-weight:700;color:#fff}
+.badge.s{background:var(--red)} .badge.a{background:var(--blue)} .badge.b{background:var(--amber)} .badge.c{background:var(--green)}
+.pill{display:inline-block;padding:1px 6px;border-radius:8px;font-size:10.5px;margin-right:2px}
+.pill.true{background:#e6fcf5;color:#0b7285;border:1px solid #96f2d7}
+.pill.false{background:#f1f3f5;color:#adb5bd}
+.pill.y{background:#fff3bf;color:#e8590c;border:1px solid #ffec99}
+.rr{font-weight:700}
+.empty{padding:20px;text-align:center;color:var(--sub);font-size:13px}
+footer{margin-top:16px;font-size:12px;color:var(--sub);line-height:1.7;border-top:1px solid var(--line);padding-top:12px}
+.note{font-size:12px;color:var(--sub);background:#f8f9fc;border:1px dashed var(--line);border-radius:8px;padding:8px 12px;margin-top:8px;line-height:1.7}
+@media(max-width:800px){.stats{grid-template-columns:repeat(2,1fr)}.tbl{font-size:11px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="header">
+    <h1>🔥 每日强势股池 × 买点区域选股器 V2.1</h1>
+    <div class="sub">门禁：当前项目每日强势股池（周线近10周≥7站上周MA5 且（月线≥6或强度≥50），动态更新）· 算法：V2.1（回踩MA60为核心）<br>
+    S级=回踩MA60+周线共振+缩量+Trigger · A级=回踩MA60+Trigger · B级=回踩MA60未确认 · 排除实体大阴线跌超5%</div>
+  </div>
+
+  <div class="ctrl">
+    <label>选择日期</label>
+    <input type="date" id="datePicker">
+    <button id="btnPrev">‹ 前一日</button>
+    <button id="btnNext">后一日 ›</button>
+    <button id="btnLatest">最新</button>
+    <span id="dayInfo" style="font-size:12px;color:var(--sub)"></span>
+  </div>
+
+  <div class="stats">
+    <div class="stat s"><div class="label">S级 · 核心买点</div><div class="num" id="cS">--</div></div>
+    <div class="stat a"><div class="label">A级 · 试仓</div><div class="num" id="cA">--</div></div>
+    <div class="stat b"><div class="label">B级 · 观察</div><div class="num" id="cB">--</div></div>
+    <div class="stat c"><div class="label">C级 · 非核心</div><div class="num" id="cC">--</div></div>
+  </div>
+
+  <div class="sec" id="sSec" style="border-left:4px solid var(--red)">
+    <h2>🔥 S级 · 核心买点 <span class="tag">回踩MA60 + 周线共振 + 缩量 + Trigger</span></h2>
+    <div id="sBody"></div>
+  </div>
+  <div class="sec" id="aSec" style="border-left:4px solid var(--blue)">
+    <h2>🎯 A级 · 试仓 <span class="tag">回踩MA60 + Trigger确认</span></h2>
+    <div id="aBody"></div>
+  </div>
+  <div class="sec" id="bSec" style="border-left:4px solid var(--amber)">
+    <h2>⏳ B级 · 观察（回踩MA60未确认）<span class="tag">回踩MA60 但 Trigger 未达标</span></h2>
+    <div id="bBody"></div>
+  </div>
+  <div class="sec" id="cSec" style="border-left:4px solid var(--green)">
+    <h2>💤 C级 · 非核心 <span class="tag">低9 / RSI&lt;30（仅记录）</span></h2>
+    <div id="cBody"></div>
+  </div>
+
+  <div class="note" id="note"></div>
+  <footer>
+    <b>算法说明（V2.1）</b>：① 强势池门禁：日线MA20&gt;MA60&gt;MA120且60/120上行 + 周线MA5&gt;MA10&gt;MA20且收盘不破周MA20 + 月线MA5&gt;MA10（每日动态重估，本页再叠加当前项目强势股池规则D）② 唯一买点=回踩MA60：|收盘−MA60|/ATR14 ≤ 1.0 ③ Trigger=缩量(vma5&lt;vma20×0.8)+均线向上(MA60上行)+企稳K线，三选二 ④ 止损=20日低点 ⑤ S级=回踩+共振+缩量+Trigger；A级=回踩+Trigger；B级=回踩未确认；C级=低9/超卖 ⑥ 排除实体大阴线跌超5%。<br>
+    回测参考（原项目V2.1）：S+A级 10日胜率72%、平均+7.65%；20日胜率75%、平均+14.85%。<br>
+    <b>免责声明</b>：以上内容基于公开数据和量化分析，仅供参考，不构成投资建议。市场有风险，投资需谨慎。任何投资决策应结合个人风险承受能力、资金状况和投资目标独立判断，必要时咨询持牌专业机构。过往表现不预示未来收益。
+  </footer>
+</div>
+
+<script src="buydian_v21_data.js"></script>
+<script>
+(function(){
+'use strict';
+var D = window.BD21_DATA;
+if(!D){ document.body.innerHTML='<p style="padding:40px">数据文件未加载</p>'; return; }
+var dates = D.dates, daily = D.daily;
+var idx = dates.length - 1;
+var $ = function(id){ return document.getElementById(id); };
+$('datePicker').min = dates[0]; $('datePicker').max = dates[dates.length-1];
+$('datePicker').value = dates[idx];
+function symCode(s){ return s.replace(/^(sh|sz|bj)/,''); }
+function pct(v){ if(v==null||isNaN(v)) return '--'; return v.toFixed(2)+'%'; }
+
+function render(){
+  var dt = dates[idx];
+  var list = daily[dt] || [];
+  var cnt = {S:0,A:0,B:0,C:0};
+  list.forEach(function(r){ if(cnt[r.level]!=null) cnt[r.level]++; });
+  $('cS').textContent=cnt.S; $('cA').textContent=cnt.A; $('cB').textContent=cnt.B; $('cC').textContent=cnt.C;
+  $('dayInfo').textContent = dt + ' · 第' + (idx+1) + '/' + dates.length + '个交易日';
+  var secs = {S:'sBody',A:'aBody',B:'bBody',C:'cBody'};
+  Object.keys(secs).forEach(function(lv){
+    var rows = list.filter(function(r){ return r.level===lv; });
+    var body = $(secs[lv]);
+    if(!rows.length){ body.innerHTML='<div class="empty">该日无 '+lv+' 级信号</div>'; return; }
+    var html = '<table class="tbl"><thead><tr>'
+      + '<th>#</th><th>代码</th><th>名称</th><th>收盘</th><th>回踩MA60</th><th>Trigger</th>'
+      + '<th>缩量</th><th>周线共振</th><th>止损</th><th>盈亏比R/R</th><th>趋势分</th><th>RSI14</th><th>距MA60</th>'
+      + '</tr></thead><tbody>';
+    rows.forEach(function(r,i){
+      html += '<tr>'
+        + '<td>'+(i+1)+'</td>'
+        + '<td><a target="_blank" href="https://gu.qq.com/'+r.c+'" style="color:var(--blue);text-decoration:none">'+symCode(r.c)+'</a></td>'
+        + '<td><b>'+r.n+'</b></td>'
+        + '<td>'+r.close+'</td>'
+        + '<td>'+r.pullback_dist+'</td>'
+        + '<td><span class="pill '+(r.trigger_ok?'true':'false')+'">'+r.trig_cnt+'/3</span></td>'
+        + '<td><span class="pill '+(r.shrink?'true':'false')+'">'+(r.shrink?'缩量':'—')+'</span></td>'
+        + '<td><span class="pill '+(r.resonate?'true':'false')+'">'+(r.resonate?'共振':'—')+'</span></td>'
+        + '<td>'+r.stop+'</td>'
+        + '<td class="rr" style="color:'+(r.rr>=2?'var(--red)':(r.rr>=1?'var(--amber)':'var(--sub)'))+'">'+(r.rr!=null?r.rr:'--')+'</td>'
+        + '<td>'+r.trend_score+'</td>'
+        + '<td>'+(r.rsi14!=null?r.rsi14:'--')+'</td>'
+        + '<td>'+pct(r.dev60)+'</td>'
+        + '</tr>';
+    });
+    html += '</tbody></table>';
+    body.innerHTML = html;
+  });
+  // 说明
+  var n = list.length;
+  $('note').innerHTML = '📊 当日信号 ' + n + ' 条 · S=' + cnt.S + ' A=' + cnt.A + ' B=' + cnt.B + ' C=' + cnt.C
+    + ' · 建议优先级：S级 &gt; A级 &gt; B级（观察待确认）&gt; C级（不参与）。'
+    + 'R/R≥2 才有操作价值，止损参考20日低点（表中已列）。';
+}
+$('datePicker').addEventListener('change', function(){ idx = dates.indexOf(this.value); if(idx<0) idx=0; render(); });
+$('btnPrev').onclick = function(){ if(idx>0){ idx--; $('datePicker').value=dates[idx]; render(); } };
+$('btnNext').onclick = function(){ if(idx<dates.length-1){ idx++; $('datePicker').value=dates[idx]; render(); } };
+$('btnLatest').onclick = function(){ idx=dates.length-1; $('datePicker').value=dates[idx]; render(); };
+render();
+})();
+</script>
+</body>
+</html>

@@ -38,7 +38,6 @@ h1 .tag{font-size:13px;font-weight:400;color:#fff;background:var(--red);border-r
 .chart-card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-bottom:14px}
 .chart-card h3{font-size:15px;margin-bottom:2px}
 .chart-card .tip{font-size:12px;color:var(--sub);margin-bottom:8px}
-#trend{width:100%;height:300px}
 .list-card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
 .toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px}
 .toolbar input[type=text]{border:1px solid var(--line);border-radius:6px;padding:5px 10px;font-size:13px;width:200px}
@@ -122,10 +121,29 @@ footer{margin-top:16px;font-size:12px;color:var(--sub);line-height:1.7;border-to
     <div class="card n4"><div class="label">当前入选</div><div class="num" id="cSel">--</div><div class="desc">满足当前筛选</div></div>
   </div>
 
-  <div class="chart-card">
-    <h3>2026年每日强势股数量走势</h3>
-    <div class="tip">红=强势股池(并集) · 紫=日周月全站上 · 蓝=仅日线 · 点击数据点跳转日期</div>
-    <div id="trend"></div>
+  <!-- ===== V2.1 买点区域 (独立模块) ===== -->
+  <div class="chart-card" id="bd21Card">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:6px">
+      <h3 style="font-size:15px">🔥 V2.1 买点区域（每日强势股池 × 回踩MA60）</h3>
+      <div style="display:flex;gap:6px;align-items:center">
+        <input type="date" id="bdDate" style="border:1px solid var(--line);border-radius:6px;padding:4px 8px;font-size:13px">
+        <button onclick="bdPrev()" style="border:1px solid var(--line);border-radius:6px;padding:4px 10px;background:#f8f9fc;cursor:pointer;font-size:12px">‹</button>
+        <button onclick="bdNext()" style="border:1px solid var(--line);border-radius:6px;padding:4px 10px;background:#f8f9fc;cursor:pointer;font-size:12px">›</button>
+        <button onclick="bdLatest()" style="border:1px solid var(--line);border-radius:6px;padding:4px 10px;background:#f8f9fc;cursor:pointer;font-size:12px">最新</button>
+      </div>
+    </div>
+    <div class="tip" style="margin-bottom:8px">S=回踩MA60+周线共振+缩量+Trigger · A=回踩MA60+Trigger · B=回踩MA60未确认 · 止损=20日低点 · 排除大阴线&gt;5% · 列表按R/R盈亏比降序（优先关注R/R≥2）</div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px">
+      <div style="background:#fff5f5;border:1px solid #ffc9c9;border-radius:8px;padding:8px 12px"><div style="font-size:11px;color:var(--sub)">S级 · 核心买点</div><div style="font-size:20px;font-weight:800;color:var(--red)" id="bdS">--</div></div>
+      <div style="background:#e7f5ff;border:1px solid #a5d8ff;border-radius:8px;padding:8px 12px"><div style="font-size:11px;color:var(--sub)">A级 · 试仓</div><div style="font-size:20px;font-weight:800;color:var(--blue)" id="bdA">--</div></div>
+      <div style="background:#fff9db;border:1px solid #ffe066;border-radius:8px;padding:8px 12px"><div style="font-size:11px;color:var(--sub)">B级 · 观察</div><div style="font-size:20px;font-weight:800;color:var(--amber)" id="bdB">--</div></div>
+      <div style="background:#ebfbee;border:1px solid #b2f2bb;border-radius:8px;padding:8px 12px"><div style="font-size:11px;color:var(--sub)">C级 · 非核心</div><div style="font-size:20px;font-weight:800;color:var(--green)" id="bdC">--</div></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr;gap:12px">
+      <div id="bdSBody"></div>
+      <div id="bdABody"></div>
+      <div id="bdBBody"></div>
+    </div>
   </div>
 
   <div class="chart-card">
@@ -184,7 +202,10 @@ footer{margin-top:16px;font-size:12px;color:var(--sub);line-height:1.7;border-to
 
   <div class="list-card">
     <div class="toolbar">
-      <input type="text" id="searchBox" placeholder="搜索代码 / 名称…">
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <b style="font-size:15px;color:var(--text);white-space:nowrap">📋 强势股池</b>
+        <input type="text" id="searchBox" placeholder="搜索代码 / 名称…">
+      </div>
       <div style="display:flex;gap:8px;align-items:center">
         <select id="sortSel">
           <option value="streak" selected>按周月连续站上 ↓（周线→月线→强度）</option>
@@ -205,7 +226,6 @@ footer{margin-top:16px;font-size:12px;color:var(--sub);line-height:1.7;border-to
       <div class="empty" id="emptyBox" style="display:none">无满足筛选条件的股票</div>
     </div>
   </div>
-
 
   <div class="pull-cards">
     <div class="pull-card">
@@ -243,6 +263,7 @@ footer{margin-top:16px;font-size:12px;color:var(--sub);line-height:1.7;border-to
 </div>
 
 <script src="strong_data.js"></script>
+<script src="buydian_v21_data.js"></script>
 <script>
 (function(){
 'use strict';
@@ -595,34 +616,15 @@ function buildList(){
   $('pgNext').disabled = page>=pages;
 }
 
-// 图表
-var chart = null;
-function renderChart(){
-  if(!window.echarts) return;
-  if(chart) chart.dispose();
-  chart = echarts.init(document.getElementById('trend'));
-  var s3=[],s2=[],s1=[];
-  dates.forEach(function(d){ var s=summary[d]||[0,0,0]; s3.push(s[0]);s2.push(s[1]);s1.push(s[2]); });
-  chart.setOption({
-    tooltip:{trigger:'axis'},
-    legend:{data:['强势股池(并集)','日周月全站上','仅日线站上'],top:0},
-    grid:{left:44,right:16,top:36,bottom:24},
-    xAxis:{type:'category',data:dates,axisLabel:{fontSize:10,interval:19}},
-    yAxis:{type:'value',minInterval:50},
-    series:[
-      {name:'强势股池(并集)',type:'line',data:s3,smooth:true,symbolSize:4,itemStyle:{color:'#e03131'},lineStyle:{width:2}},
-      {name:'日周月全站上',type:'line',data:s2,smooth:true,symbolSize:4,itemStyle:{color:'#7950f2'},lineStyle:{width:1.4}},
-      {name:'仅日线站上',type:'line',data:s1,smooth:true,symbolSize:4,itemStyle:{color:'#1c7ed6'},lineStyle:{width:1.4}}
-    ]
-  });
-  chart.on('click', function(p){ if(p&&p.dataIndex!=null) selectDate(dates[p.dataIndex]); });
-}
+// 图表（走势图已移除，renderChart 置空）
+function renderChart(){}
 
 function selectDate(dstr){
   var i = dates.indexOf(dstr);
   if(i<0) return;
   dateIdx = i; $('datePicker').value = dstr; page = 1;
   blkFilter = '';   // 切日期时清除板块筛选(不同日期板块分布不同, 残留会误导)
+  if(window.bdSetDate) window.bdSetDate(dstr);   // 联动V2.1买点模块
   renderCards(); renderChart(); buildList();
 }
 $('datePicker').addEventListener('change', function(){ selectDate($('datePicker').value); });
@@ -651,6 +653,88 @@ function buildTotal(){
 }
 
 renderCards(); renderChart(); buildList();
+})();
+
+// ===== V2.1 买点区域渲染 (独立IIFE) =====
+(function(){
+'use strict';
+var D2 = window.BD21_DATA;
+if(!D2){ return; }
+var bdDates = D2.dates, bdDaily = D2.daily;
+var bdIdx = bdDates.length - 1;
+function symCode2(s){ return s.replace(/^(sh|sz|bj)/,''); }
+function bdPct(v){ if(v==null||isNaN(v)) return '--'; return v.toFixed(2)+'%'; }
+function bdRow(r, i){
+  return '<tr>'
+    + '<td>'+(i+1)+'</td>'
+    + '<td><a target="_blank" href="https://gu.qq.com/'+r.c+'" style="color:var(--blue);text-decoration:none">'+symCode2(r.c)+'</a></td>'
+    + '<td><b>'+r.n+'</b></td>'
+    + '<td>'+r.close+'</td>'
+    + '<td>'+r.pullback_dist+'</td>'
+    + '<td style="text-align:center"><span style="display:inline-block;padding:0 6px;border-radius:8px;font-size:11px;background:'+(r.trigger_ok?'#e6fcf5;color:#0b7285':'#f1f3f5;color:#adb5bd')+'">'+r.trig_cnt+'/3</span></td>'
+    + '<td style="text-align:center">'+(r.shrink?'<span style="color:#099268;font-weight:700">缩量</span>':'—')+'</td>'
+    + '<td style="text-align:center">'+(r.resonate?'<span style="color:#e8590c;font-weight:700">共振</span>':'—')+'</td>'
+    + '<td>'+r.stop+'</td>'
+    + '<td style="font-weight:700;color:'+(r.rr>=2?'var(--red)':(r.rr>=1?'var(--amber)':'var(--sub)'))+'">'+(r.rr!=null?r.rr:'--')+'</td>'
+    + '<td>'+r.trend_score+'</td>'
+    + '<td>'+(r.rsi14!=null?r.rsi14:'--')+'</td>'
+    + '<td>'+bdPct(r.dev60)+'</td>'
+    + '</tr>';
+}
+function bdTable(rows, color){
+  var html = '<div style="border-left:4px solid '+color+';background:#f8f9fc;border-radius:8px;padding:8px 12px;margin-bottom:8px"><b style="font-size:13px">'+colorHead(color)+'</b></div>';
+  if(!rows.length){ return '<div style="padding:10px;text-align:center;color:var(--sub);font-size:12px">无信号</div>'; }
+  html += '<div style="overflow:auto;max-height:420px"><table style="width:100%;border-collapse:collapse;font-size:12px">'
+    + '<thead><tr style="background:#f1f3f5">'
+    + '<th style="padding:5px 7px;text-align:left">#</th><th style="padding:5px 7px;text-align:left">代码</th><th style="padding:5px 7px;text-align:left">名称</th>'
+    + '<th style="padding:5px 7px;text-align:left">收盘</th><th style="padding:5px 7px;text-align:left">回踩MA60</th><th style="padding:5px 7px;text-align:center">Trigger</th>'
+    + '<th style="padding:5px 7px;text-align:center">缩量</th><th style="padding:5px 7px;text-align:center">周线共振</th><th style="padding:5px 7px;text-align:left">止损</th>'
+    + '<th style="padding:5px 7px;text-align:left">R/R</th><th style="padding:5px 7px;text-align:left">趋势分</th><th style="padding:5px 7px;text-align:left">RSI14</th><th style="padding:5px 7px;text-align:left">距MA60</th>'
+    + '</tr></thead><tbody>';
+  rows.forEach(function(r,i){ html += bdRow(r,i); });
+  html += '</tbody></table></div>';
+  return html;
+}
+function colorHead(color){
+  if(color==='#e03131') return '🔥 S级 · 核心买点（回踩MA60+共振+缩量+Trigger）';
+  if(color==='#1c7ed6') return '🎯 A级 · 试仓（回踩MA60+Trigger）';
+  return '⏳ B级 · 观察（回踩MA60未确认）';
+}
+function bdRender(){
+  var dt = bdDates[bdIdx];
+  var list = bdDaily[dt] || [];
+  var cnt = {S:0,A:0,B:0,C:0};
+  list.forEach(function(r){ if(cnt[r.level]!=null) cnt[r.level]++; });
+  document.getElementById('bdS').textContent = cnt.S;
+  document.getElementById('bdA').textContent = cnt.A;
+  document.getElementById('bdB').textContent = cnt.B;
+  document.getElementById('bdC').textContent = cnt.C;
+  document.getElementById('bdDate').value = dt;
+  document.getElementById('bdSBody').innerHTML = bdTable(list.filter(function(r){return r.level==='S';}).sort(function(a,b){return (b.rr||0)-(a.rr||0);}), '#e03131');
+  document.getElementById('bdABody').innerHTML = bdTable(list.filter(function(r){return r.level==='A';}).sort(function(a,b){return (b.rr||0)-(a.rr||0);}), '#1c7ed6');
+  document.getElementById('bdBBody').innerHTML = bdTable(list.filter(function(r){return r.level==='B';}).sort(function(a,b){return (b.rr||0)-(a.rr||0);}), '#f08c00');
+}
+window.bdPrev = function(){ if(bdIdx>0){ bdIdx--; bdRender(); } };
+window.bdNext = function(){ if(bdIdx<bdDates.length-1){ bdIdx++; bdRender(); } };
+window.bdLatest = function(){ bdIdx=bdDates.length-1; bdRender(); };
+window.bdSetDate = function(dstr){   // 供主页面联动
+  var i = bdDates.indexOf(dstr);
+  if(i >= 0){ bdIdx = i; bdRender(); }
+  else {
+    // 该日无V2.1数据时, 尝试插入并显示空(保持联动)
+    if(dstr > bdDates[0] && dstr < bdDates[bdDates.length-1]){
+      bdDates.splice(bdIdx + 1, 0, dstr);
+      bdDaily[dstr] = [];
+      bdIdx = bdDates.indexOf(dstr);
+      bdRender();
+    }
+  }
+};
+document.getElementById('bdDate').addEventListener('change', function(){
+  var i = bdDates.indexOf(this.value);
+  if(i>=0){ bdIdx=i; bdRender(); }
+});
+bdRender();
 })();
 </script>
 </body>
