@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>多周期强势股选股器 · 日/周/月站上MA5</title>
+<script src="echarts.min.js"></script>
+<style>
+:root{
+  --bg:#f5f6fa; --card:#ffffff; --line:#e3e6ef; --text:#1f2430; --sub:#6b7280;
+  --red:#e03131; --red-bg:#fdecec; --green:#0ca678; --blue:#1c7ed6; --blue-bg:#e7f1fb;
+  --purple:#7950f2; --purple-bg:#f0ebfd; --orange:#f08c00; --orange-bg:#fff3e0;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;font-size:14px}
+.wrap{max-width:1200px;margin:0 auto;padding:20px 16px 60px}
+header{display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+h1{font-size:23px;font-weight:700}
+h1 .tag{font-size:13px;font-weight:400;color:#fff;background:var(--red);border-radius:4px;padding:2px 8px;margin-left:8px;vertical-align:3px}
+.sub{color:var(--sub);font-size:13px;margin-top:4px;line-height:1.6}
+.ctrl{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-bottom:14px;display:flex;flex-wrap:wrap;align-items:center;gap:12px}
+.ctrl label{color:var(--sub);font-size:13px}
+.ctrl input[type=date]{border:1px solid var(--line);border-radius:6px;padding:6px 10px;font-size:14px}
+.ctrl .btn{border:1px solid var(--line);background:#fff;border-radius:6px;padding:6px 12px;font-size:13px;cursor:pointer}
+.ctrl .btn:hover{background:var(--blue-bg);border-color:var(--blue);color:var(--blue)}
+.ctrl .dayinfo{color:var(--blue);font-size:13px;font-weight:600}
+.filters{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-bottom:14px}
+.filters h3{font-size:14px;margin-bottom:10px}
+.filter-row{display:flex;flex-wrap:wrap;gap:16px;align-items:center}
+.filter-item{display:flex;align-items:center;gap:6px;font-size:13px}
+.filter-item select{border:1px solid var(--line);border-radius:6px;padding:4px 8px;font-size:13px;background:#fff}
+.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:13px 16px}
+.card .label{font-size:12px;color:var(--sub)}
+.card .num{font-size:26px;font-weight:700;margin-top:4px}
+.card .desc{font-size:11px;color:var(--sub);margin-top:3px}
+.card.n1 .num{color:var(--red)} .card.n2 .num{color:var(--purple)} .card.n3 .num{color:var(--blue)} .card.n4 .num{color:var(--orange)}
+.chart-card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-bottom:14px}
+.chart-card h3{font-size:15px;margin-bottom:2px}
+.chart-card .tip{font-size:12px;color:var(--sub);margin-bottom:8px}
+#trend{width:100%;height:300px}
+.list-card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px}
+.toolbar input[type=text]{border:1px solid var(--line);border-radius:6px;padding:5px 10px;font-size:13px;width:200px}
+.pager{display:flex;gap:6px;align-items:center;font-size:13px;color:var(--sub)}
+.pager button{border:1px solid var(--line);background:#fff;border-radius:5px;padding:3px 10px;cursor:pointer}
+.pager button:disabled{opacity:.4;cursor:default}
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead th{background:#f8f9fc;color:var(--sub);font-weight:600;text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);position:sticky;top:0;white-space:nowrap}
+tbody td{padding:7px 10px;border-bottom:1px solid #eef0f6;white-space:nowrap}
+tbody tr:hover{background:#f7f9ff}
+.code{font-family:Menlo,Consolas,monospace;font-weight:600}
+.sym-link{color:var(--blue);text-decoration:none}
+.up{color:var(--red);font-weight:600}.down{color:var(--green);font-weight:600}.flat{color:var(--sub)}
+.pill{display:inline-block;padding:1px 8px;border-radius:10px;font-size:11px;color:#fff;margin-right:3px}
+.pill.on{background:#0ca678}.pill.off{background:#ced4da}
+.empty{padding:40px;text-align:center;color:var(--sub)}
+.pull-cards{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+.pull-card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.pull-head{border-left:4px solid;padding-left:10px;margin-bottom:8px}
+.pull-head h3{font-size:14px;display:inline}
+.pull-cnt{display:inline-block;background:#f1f3f5;border-radius:10px;padding:1px 8px;font-size:12px;font-weight:700;color:var(--blue);margin-left:6px}
+.pull-tip{display:block;font-size:11px;color:var(--sub);margin-top:3px}
+.pull-tbl{width:100%;border-collapse:collapse;font-size:12px}
+.pull-tbl thead th{background:#f8f9fc;color:var(--sub);font-weight:600;text-align:left;padding:5px 8px;border-bottom:1px solid var(--line);font-size:11px}
+.pull-tbl tbody td{padding:5px 8px;border-bottom:1px solid #f0f2f7;white-space:nowrap}
+.pull-tbl tbody tr:hover{background:#f7f9ff}
+.pull-more{margin-top:6px;font-size:12px;text-align:center;color:var(--blue)}
+.pull-more a{color:var(--blue);text-decoration:none}
+.pull-badge{display:inline-block;padding:1px 5px;border-radius:8px;font-size:10px;color:#fff}
+.blk-num{font-weight:700;color:var(--red);cursor:pointer;text-decoration:underline;text-decoration-color:transparent}
+.blk-num:hover{text-decoration-color:var(--red)}
+@media(max-width:900px){.pull-cards{grid-template-columns:1fr}}
+footer{margin-top:16px;font-size:12px;color:var(--sub);line-height:1.7;border-top:1px solid var(--line);padding-top:12px}
+@media(max-width:860px){.cards{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>多周期强势股选股器 <span class="tag">日/周/月 三线共振</span></h1>
+      <div class="sub">日K / 周K / 月K 同时站上各自 MA5（5日线）的强势个股 · 全A股 <span id="stkCnt">--</span> 只 · 数据截至 2026-08-21</div>
+    </div>
+    <div class="sub" id="genInfo"></div>
+  </header>
+
+  <div class="ctrl">
+    <label>选择日期</label>
+    <input type="date" id="datePicker">
+    <button class="btn" id="btnPrev">‹ 前一日</button>
+    <button class="btn" id="btnNext">后一日 ›</button>
+    <button class="btn" id="btnLatest">最新</button>
+    <span class="dayinfo" id="dayInfo"></span>
+    <span class="hint" style="color:var(--sub);font-size:12px;margin-left:auto">点击走势图可跳转日期</span>
+  </div>
+
+  <div class="filters">
+    <h3>强势筛选</h3>
+    <div class="filter-row">
+      <div class="filter-item">周期要求 <select id="reqSel">
+        <option value="4" selected>周月持续强势（强势股池）</option>
+        <option value="5">周月持续 ∪ 日周月全站上（放宽参考）</option>
+        <option value="3">日+周+月 全站上MA5（非强势，参考）</option>
+        <option value="2">日+周 站上MA5</option>
+        <option value="1">仅日线站上MA5</option>
+      </select></div>
+      <div class="filter-item">最低强度 <select id="minStr">
+        <option value="-999">不限</option>
+        <option value="0">> 0</option>
+        <option value="3">> 3%</option>
+        <option value="6" selected>> 6%</option>
+        <option value="10">> 10%</option>
+      </select> <span style="color:var(--sub);font-size:12px">(三周期乖离率之和)</span></div>
+    </div>
+  </div>
+
+  <div class="cards">
+    <div class="card n1"><div class="label">强势股池</div><div class="num" id="c3">--</div><div class="desc">周月持续强势（周≥7/10 + 月≥6/12或强度≥50）</div></div>
+    <div class="card n2"><div class="label">日周月全站上</div><div class="num" id="c2">--</div><div class="desc">参考项（勉强站上三线，非强势池）</div></div>
+    <div class="card n3"><div class="label">仅日线站上</div><div class="num" id="c1">--</div><div class="desc">日K站上MA5</div></div>
+    <div class="card n4"><div class="label">当前入选</div><div class="num" id="cSel">--</div><div class="desc">满足当前筛选</div></div>
+  </div>
+
+  <div class="chart-card">
+    <h3>2026年每日强势股数量走势</h3>
+    <div class="tip">红=强势股池(并集) · 紫=日周月全站上 · 蓝=仅日线 · 点击数据点跳转日期</div>
+    <div id="trend"></div>
+  </div>
+
+  <div class="chart-card">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:8px">
+      <h3 style="font-size:15px">📊 强势股板块分布统计</h3>
+      <div style="display:flex;gap:6px;align-items:center">
+        <span style="font-size:12px;color:var(--sub)">统计口径：</span>
+        <select id="blkDim" style="border:1px solid var(--line);border-radius:6px;padding:4px 8px;font-size:13px">
+          <option value="ind" selected>行业板块</option>
+          <option value="con">概念板块</option>
+        </select>
+        <span style="font-size:12px;color:var(--sub)">· 强势池 <b id="blkPoolN" style="color:var(--red)">--</b> 只</span>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+      <div id="blkChart" style="width:100%;height:340px"></div>
+      <div style="overflow:auto;max-height:340px">
+        <table id="blkTbl" style="width:100%;border-collapse:collapse;font-size:12.5px">
+          <thead><tr>
+            <th style="background:#f8f9fc;color:var(--sub);text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)">板块</th>
+            <th style="background:#f8f9fc;color:var(--sub);text-align:right;padding:6px 8px;border-bottom:1px solid var(--line)">强势股数</th>
+            <th style="background:#f8f9fc;color:var(--sub);text-align:right;padding:6px 8px;border-bottom:1px solid var(--line)">占比</th>
+          </tr></thead>
+          <tbody id="blkTbody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="tip" style="margin-top:8px">点击图表柱子或表格行可筛选列表仅显示该板块个股 · 点击数量<span style="color:var(--red);font-weight:600">数字</span>弹出该板块详细个股列表</div>
+  </div>
+
+  <!-- 板块个股弹窗 -->
+  <div id="blkModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(20,24,40,.55);z-index:1000;justify-content:center;align-items:center">
+    <div style="background:#fff;border-radius:12px;width:min(900px,94vw);max-height:82vh;display:flex;flex-direction:column;box-shadow:0 10px 40px rgba(0,0,0,.25)">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--line)">
+        <h3 style="font-size:15px">📋 <span id="blkModalTitle" style="color:var(--red)">--</span> 强势股明细 <span id="blkModalCnt" style="font-size:12px;color:var(--sub);font-weight:400"></span></h3>
+        <button onclick="document.getElementById('blkModal').style.display='none'" style="border:1px solid var(--line);background:#fff;border-radius:6px;padding:4px 12px;cursor:pointer;font-size:13px">✕ 关闭</button>
+      </div>
+      <div style="overflow:auto;padding:10px 18px 16px">
+        <table style="width:100%;border-collapse:collapse;font-size:12.5px">
+          <thead><tr>
+            <th style="background:#f8f9fc;color:var(--sub);text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)">#</th>
+            <th style="background:#f8f9fc;color:var(--sub);text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)">代码</th>
+            <th style="background:#f8f9fc;color:var(--sub);text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)">名称</th>
+            <th style="background:#f8f9fc;color:var(--sub);text-align:right;padding:6px 8px;border-bottom:1px solid var(--line)">收盘</th>
+            <th style="background:#f8f9fc;color:var(--sub);text-align:right;padding:6px 8px;border-bottom:1px solid var(--line)">涨跌幅</th>
+            <th style="background:#f8f9fc;color:var(--sub);text-align:right;padding:6px 8px;border-bottom:1px solid var(--line)">强度%</th>
+            <th style="background:#f8f9fc;color:var(--sub);text-align:right;padding:6px 8px;border-bottom:1px solid var(--line)">回踩10分</th>
+            <th style="background:#f8f9fc;color:var(--sub);text-align:right;padding:6px 8px;border-bottom:1px solid var(--line)">回踩20分</th>
+            <th style="background:#f8f9fc;color:var(--sub);text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)">所属板块</th>
+          </tr></thead>
+          <tbody id="blkModalBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="list-card">
+    <div class="toolbar">
+      <input type="text" id="searchBox" placeholder="搜索代码 / 名称…">
+      <div style="display:flex;gap:8px;align-items:center">
+        <select id="sortSel">
+          <option value="streak" selected>按周月连续站上 ↓（周线→月线→强度）</option>
+          <option value="strDesc">按强度 ↓</option>
+          <option value="pctDesc">按当日涨跌幅 ↓</option>
+          <option value="code">按代码</option>
+        </select>
+        <div class="pager"><button id="pgPrev">‹</button><span id="pgInfo">1/1</span><button id="pgNext">›</button></div>
+      </div>
+    </div>
+    <div style="max-height:560px;overflow:auto">
+      <table>
+        <thead><tr>
+          <th>#</th><th>代码</th><th>名称</th><th>收盘价</th><th>涨跌幅</th><th>周/月连续站上</th><th>所属板块</th><th>上涨逻辑</th><th>强度%</th>
+        </tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+      <div class="empty" id="emptyBox" style="display:none">无满足筛选条件的股票</div>
+    </div>
+  </div>
+
+
+  <div class="pull-cards">
+    <div class="pull-card">
+      <div class="pull-head" style="border-left-color:#1c7ed6">
+        <h3>🔵 回踩 10 日线附近 · TOP10</h3>
+        <span class="pull-cnt" id="p10cnt">0</span>
+        <span class="pull-tip">强势回踩评分(0~100)：前期涨幅+均线多头+缩量回踩+K线止跌+收回速度+周线配合 · 高分=更接近强势回踩</span>
+      </div>
+      <table class="pull-tbl">
+        <thead><tr><th>#</th><th>代码</th><th>名称</th><th>收盘</th><th>涨跌幅</th><th>距MA10</th><th>强势评分</th><th>所属板块</th></tr></thead>
+        <tbody id="p10body"></tbody>
+      </table>
+      <div class="pull-more" id="p10more" style="display:none"><a href="javascript:void(0)">展开全部</a></div>
+    </div>
+    <div class="pull-card">
+      <div class="pull-head" style="border-left-color:#f08c00">
+        <h3>🟠 回踩 20 日线附近 · TOP10</h3>
+        <span class="pull-cnt" id="p20cnt">0</span>
+        <span class="pull-tip">强势回踩评分(0~100)：回踩20日线要求更严缩量(0.7×)与周线多头 · 高分=更接近波段级强势回踩</span>
+      </div>
+      <table class="pull-tbl">
+        <thead><tr><th>#</th><th>代码</th><th>名称</th><th>收盘</th><th>涨跌幅</th><th>距MA20</th><th>强势评分</th><th>所属板块</th></tr></thead>
+        <tbody id="p20body"></tbody>
+      </table>
+      <div class="pull-more" id="p20more" style="display:none"><a href="javascript:void(0)">展开全部</a></div>
+    </div>
+  </div>
+
+  <footer>
+    <b>选股逻辑</b>：强势股池 = <b>周月持续强势</b>：周线近10周≥7周站上周MA5（核心），且月线近12月≥6月站上月MA5 或 三周期强度≥50（月线不足时用高强度补偿）。<b>"日周月全站上MA5"不作为强势依据</b>——只是当日勉强站上三线（如方大集团周线仅5/10、强度5.6），非强势股。周K/月K按"截至所选日期"动态聚合，每日自动更新——跌破条件即剔除出池。药明康德（周10/10、月9/12）、哈药股份（周8/10、强度78）即通过本规则入选。<br>
+    <b>回踩信号（强势回踩评分模型）</b>：🔵 回踩10日线 = 股池内收盘偏离MA10 0~2.5% 且盘中触及；🟠 回踩20日线 = 收盘偏离MA20 0~2.5% 且盘中触及。两栏均按<b>强势回踩评分</b>排序（0~100）：前期涨幅(近20日≥15%满分) + 均线多头排列与斜率向上 + 回踩缩量(10日&lt;0.8×量/20日&lt;0.7×量) + K线止跌(长下影/阳线/阳包阴) + 收回速度(站回MA5) + 周线多头配合；放量长阴破位、均线走平向下、周线走坏等失败形态被降权或剔除。回踩均线代表强势股回调至支撑位，是潜在低吸观察点，需结合量能与大盘环境判断。<br>
+    行情为前复权日K，数据来源腾讯自选股行情接口，统计截至 2026-08-21 收盘。<br>
+    <b>免责声明</b>：以上内容基于公开数据和量化分析，仅供参考，不构成投资建议。市场有风险，投资需谨慎。任何投资决策应结合个人风险承受能力、资金状况和投资目标独立判断，必要时咨询持牌专业机构。过往表现不预示未来收益。
+  </footer>
+</div>
+
+<script src="strong_data.js"></script>
+<script>
+(function(){
+'use strict';
+var D = window.STRONG_DATA;
+if(!D){ document.body.innerHTML='<p style="padding:40px">数据文件未加载</p>'; return; }
+var dates = D.dates, strong = D.strong, meta = D.meta, summary = D.sum;
+
+var dateIdx = dates.length - 1;
+var page = 1, pageSize = 50;
+var searchKw = '', sortBy = 'streak';
+var req = 4, minStr = 6;
+var blkDim = 'ind';                 // 板块统计维度: ind=行业 con=概念
+var blkFilter = '';                 // 板块筛选(空=全部)
+var blkChart = null;
+
+// 板块统计: 返回 {板块名: [sym...]}
+function blockMap(d){
+  var day = strong[d]||{};
+  var map = {};
+  Object.keys(day).forEach(function(sym){
+    var r = day[sym];
+    if(!inPool(r)) return;          // 仅强势池(并集)
+    var m = meta[sym]||[];
+    if(blkDim==='ind'){
+      var ind = m[3]||'未知';
+      (map[ind]=map[ind]||[]).push(sym);
+    } else {
+      (m[4]||'').split(',').filter(Boolean).forEach(function(c){
+        (map[c]=map[c]||[]).push(sym);
+      });
+    }
+  });
+  return map;
+}
+function renderBlockStat(){
+  var d = curDate();
+  var map = blockMap(d);
+  var entries = Object.keys(map).map(function(k){ return {name:k, syms:map[k], n:map[k].length}; })
+    .filter(function(e){ return e.n >= 2; })
+    .sort(function(a,b){ return b.n-a.n; });
+  var poolN = entries.reduce(function(s,e){ return s+e.n; }, 0);
+  // 概念有重叠, 用去重后强势池数
+  var day = strong[d]||{};
+  var poolAll = Object.keys(day).filter(function(s){ var r=day[s]; return inPool(r); }).length;
+  document.getElementById('blkPoolN').textContent = poolAll;
+
+  var top = entries.slice(0, 15);
+  // 表格
+  var th = '';
+  entries.slice(0, 30).forEach(function(e){
+    var pct = (e.n / poolAll * 100).toFixed(1);
+    var hl = blkFilter === e.name ? ' style="background:#fff3bf"' : '';
+    th += '<tr'+hl+' class="blk-row" data-blk="'+e.name.replace(/"/g,'&quot;')+'">'
+      + '<td style="padding:5px 8px;border-bottom:1px solid #f0f2f7;cursor:pointer">'+e.name+'</td>'
+      + '<td style="padding:5px 8px;border-bottom:1px solid #f0f2f7;text-align:right;cursor:pointer;font-weight:600"><span class="blk-num" data-blk="'+e.name.replace(/"/g,'&quot;')+'">'+e.n+'</span></td>'
+      + '<td style="padding:5px 8px;border-bottom:1px solid #f0f2f7;text-align:right;color:var(--sub)">'+pct+'%</td></tr>';
+  });
+  document.getElementById('blkTbody').innerHTML = th
+    + '<tr><td colspan="3" style="padding:6px 8px;text-align:center"><a href="javascript:void(0)" id="blkReset" style="color:var(--blue);font-size:12px;text-decoration:none">'+ (blkFilter ? '点击清除板块筛选' : '') +'</a></td></tr>';
+  // 柱状图
+  if(blkChart) blkChart.dispose();
+  blkChart = echarts.init(document.getElementById('blkChart'));
+  blkChart.setOption({
+    tooltip: { trigger:'axis', formatter: function(ps){
+      var p = ps[0];
+      return p.name + '<br>强势股数: <b>' + p.value + '</b> 只<br>占比: ' + (p.value/poolAll*100).toFixed(1) + '%';
+    }},
+    grid: { left:10, right:30, top:6, bottom:24, containLabel:true },
+    xAxis: { type:'value', minInterval:1 },
+    yAxis: { type:'category', data: top.map(function(e){return e.name;}).reverse(), axisLabel:{ fontSize:11 } },
+    series: [{
+      type:'bar', data: top.map(function(e){return e.n;}).reverse(), barMaxWidth:16,
+      itemStyle:{ color:'#e03131', borderRadius:[0,4,4,0] },
+      label:{ show:true, position:'right', fontSize:11, formatter:'{c}' }
+    }]
+  });
+  blkChart.on('click', function(p){
+    if(p && p.name != null){
+      var nm = top[top.length-1-p.dataIndex].name;
+      blkFilter = (blkFilter===nm) ? '' : nm;
+      page = 1; renderCards(); renderBlockStat(); buildList();
+    }
+  });
+  document.getElementById('blkReset').onclick = function(){ blkFilter=''; page=1; renderCards(); renderBlockStat(); buildList(); };
+  document.querySelectorAll('.blk-row').forEach(function(tr){
+    tr.addEventListener('click', function(){
+      var nm = tr.getAttribute('data-blk');
+      blkFilter = (blkFilter===nm) ? '' : nm;
+      page = 1; renderCards(); renderBlockStat(); buildList();
+    });
+  });
+  // 数量点击 -> 弹出板块个股明细
+  document.querySelectorAll('.blk-num').forEach(function(span){
+    span.addEventListener('click', function(ev){
+      ev.stopPropagation();
+      openBlkModal(span.getAttribute('data-blk'));
+    });
+  });
+}
+
+// 点击遮罩关闭弹窗
+document.addEventListener('click', function(ev){
+  var modal = document.getElementById('blkModal');
+  if(modal && modal.style.display === 'flex' && ev.target === modal){
+    modal.style.display = 'none';
+  }
+});
+// ESC 关闭
+document.addEventListener('keydown', function(ev){
+  if(ev.key === 'Escape'){
+    var modal = document.getElementById('blkModal');
+    if(modal) modal.style.display = 'none';
+  }
+});
+
+// 弹出板块个股明细
+function openBlkModal(blkName){
+  var d = curDate();
+  var day = strong[d]||{};
+  var dim = blkDim;
+  var syms = [];
+  Object.keys(day).forEach(function(sym){
+    var r = day[sym];
+    if(!inPool(r)) return;
+    var m = meta[sym]||[];
+    var blks = dim==='ind' ? [m[3]||'未知'] : (m[4]||'').split(',').filter(Boolean);
+    if(blks.indexOf(blkName) >= 0) syms.push(sym);
+  });
+  document.getElementById('blkModalTitle').textContent = blkName + '（' + (dim==='ind'?'行业':'概念') + '）';
+  document.getElementById('blkModalCnt').textContent = '· 共 ' + syms.length + ' 只强势股';
+  var rows = syms.map(function(sym){
+    var r = day[sym];
+    var m = meta[sym]||['','--','--','',''];
+    return { sym:sym, name:m[0], close:m[1], pct:m[2], ind:m[3], con:m[4], r:r };
+  }).sort(function(a,b){ return b.r[3]-a.r[3]; });
+  var html = '';
+  rows.forEach(function(it, i){
+    var pctHtml = (it.pct==null||isNaN(it.pct)) ? '<span class="flat">--</span>'
+      : '<span class="'+(it.pct>0?'up':'down')+'">'+(it.pct>0?'+':'')+Number(it.pct).toFixed(2)+'%</span>';
+    var blkHtml = dim==='ind'
+      ? (it.ind||'')
+      : (it.con||'').split(',').filter(Boolean).slice(0,2).join(',');
+    html += '<tr>'
+      + '<td style="padding:6px 8px;border-bottom:1px solid #f0f2f7">'+(i+1)+'</td>'
+      + '<td style="padding:6px 8px;border-bottom:1px solid #f0f2f7"><a class="sym-link" target="_blank" href="https://gu.qq.com/'+it.sym+'" style="text-decoration:none">'+symCode(it.sym)+'</a></td>'
+      + '<td style="padding:6px 8px;border-bottom:1px solid #f0f2f7">'+it.name+'</td>'
+      + '<td style="padding:6px 8px;border-bottom:1px solid #f0f2f7;text-align:right">'+(it.close==='--'?'--':Number(it.close).toFixed(2))+'</td>'
+      + '<td style="padding:6px 8px;border-bottom:1px solid #f0f2f7;text-align:right">'+pctHtml+'</td>'
+      + '<td style="padding:6px 8px;border-bottom:1px solid #f0f2f7;text-align:right;font-weight:600">'+it.r[3].toFixed(1)+'</td>'
+      + '<td style="padding:6px 8px;border-bottom:1px solid #f0f2f7;text-align:right">'+(it.r[9]>0?it.r[9].toFixed(0):'-')+'</td>'
+      + '<td style="padding:6px 8px;border-bottom:1px solid #f0f2f7;text-align:right">'+(it.r[10]>0?it.r[10].toFixed(0):'-')+'</td>'
+      + '<td style="padding:6px 8px;border-bottom:1px solid #f0f2f7">'+blkHtml+'</td>'
+      + '</tr>';
+  });
+  document.getElementById('blkModalBody').innerHTML = html;
+  document.getElementById('blkModal').style.display = 'flex';
+}
+
+var $ = function(id){ return document.getElementById(id); };
+var tbody=$('tbody'), emptyBox=$('emptyBox');
+
+$('datePicker').min = dates[0]; $('datePicker').max = dates[dates.length-1];
+$('datePicker').value = dates[dateIdx];
+$('stkCnt').textContent = Object.keys(meta).length;
+$('genInfo').textContent = '数据生成于 ' + (D.gen||'') + ' · 共 ' + dates.length + ' 个交易日';
+
+function curDate(){ return dates[dateIdx]; }
+function symCode(sym){ return sym.replace(/^(sh|sz|bj)/,''); }
+function fmtPct(p){
+  if(p==null||isNaN(p)) return '<span class="flat">--</span>';
+  var cls = p>0?'up':(p<0?'down':'flat');
+  return '<span class="'+cls+'">'+(p>0?'+':'')+p.toFixed(2)+'%</span>';
+}
+function getRec(date, sym){ return (strong[date]||{})[sym] || null; }
+
+// 过滤
+function pass(date, sym){
+  var r = getRec(date, sym);
+  if(!r) return false;
+  // r: [day,week,month,strength,bias10,bias20,pull10,pull20,form,p10s,p20s,bull,aboveYear,ret20,dayPct,wkUp10,moUp12,wkStreak,moStreak]
+  var weekMonthStrong = (r[15] >= 7 && (r[16] >= 6 || r[3] >= 50));   // 规则D: 周线核心+月线或强度补偿
+  var dayWeekMonth = (r[0] && r[1] && r[2]);                           // 日周月全站上
+  if(req === 4 && !weekMonthStrong) return false;
+  if(req === 5 && !(weekMonthStrong || dayWeekMonth)) return false;
+  if(req === 3 && !dayWeekMonth) return false;
+  if(req === 2 && !(r[0] && r[1])) return false;
+  if(req === 1 && !r[0]) return false;
+  if(r[3] < minStr) return false;
+  // 板块筛选
+  if(blkFilter){
+    var m = meta[sym]||[];
+    var blks = [];
+    if(blkDim==='ind') blks = [m[3]||'未知'];
+    else blks = (m[4]||'').split(',').filter(Boolean);
+    if(blks.indexOf(blkFilter) < 0) return false;
+  }
+  return true;
+}
+
+function renderCards(){
+  var d = curDate();
+  var day = strong[d]||{};
+  var nPool=0, nDWM=0, n1=0, nSel=0;
+  Object.keys(day).forEach(function(sym){
+    var r = day[sym];
+    var poolOk = inPool(r);                       // 纯规则D强势池
+    var dayWeekMonth = (r[0] && r[1] && r[2]);    // 仅作展示参考(非强势池)
+    if(r[0]) n1++;
+    if(dayWeekMonth) nDWM++;
+    if(poolOk) nPool++;
+    if(pass(d,sym)) nSel++;
+  });
+  $('c3').textContent=nPool; $('c2').textContent=nDWM; $('c1').textContent=n1; $('cSel').textContent=nSel;
+  $('dayInfo').textContent = '第 ' + (dateIdx+1) + ' / ' + dates.length + ' 个交易日';
+  renderPull();
+  renderBlockStat();
+}
+
+// 强势池判定(纯规则D): 周线持续强势为核心, 月线不足用强度补偿
+// 不再包含"日周月全站上"——那只是勉强站上三线, 不算强势
+function inPool(r){
+  return (r[15] >= 7 && (r[16] >= 6 || r[3] >= 50));
+}
+
+// 回踩10日/20日两栏
+var pull10Expanded = false, pull20Expanded = false;
+function pullRow(sym, r, biasIdx, scoreIdx){
+  var m = meta[sym]||['','--','--','',''];
+  var bias = r[biasIdx];
+  var score = r[scoreIdx];
+  var pctHtml = (m[2]==null||isNaN(m[2])) ? '<span class="flat">--</span>'
+    : '<span class="'+(m[2]>0?'up':'down')+'">'+(m[2]>0?'+':'')+Number(m[2]).toFixed(2)+'%</span>';
+  var indHtml = m[3] ? '<span style="background:#e7f1fb;color:#1c7ed6;border-radius:4px;padding:0 5px;font-size:10px;font-weight:600;margin-right:2px">'+m[3]+'</span>' : '';
+  var conHtml = (m[4]||'').split(',').filter(Boolean).slice(0,1).map(function(c){
+    return '<span style="background:#f1f3f5;color:#495057;border-radius:4px;padding:0 4px;font-size:10px;margin-right:2px">'+c+'</span>';
+  }).join('');
+  var col = biasIdx===4 ? '#1c7ed6' : '#f08c00';
+  var biasHtml = '<span class="pull-badge" style="background:'+col+'">'+(bias>=0?'+':'')+bias.toFixed(2)+'%</span>';
+  var scCls = score >= 80 ? 'up' : (score >= 60 ? 'flat' : 'down');
+  var scHtml = '<b class="'+scCls+'" style="font-size:13px">'+score.toFixed(0)+'</b>';
+  return '<tr><td></td>'
+    + '<td class="code"><a class="sym-link" target="_blank" href="https://gu.qq.com/'+sym+'">'+symCode(sym)+'</a></td>'
+    + '<td>'+m[0]+'</td>'
+    + '<td>'+(m[1]==='--'?'--':Number(m[1]).toFixed(2))+'</td>'
+    + '<td>'+pctHtml+'</td>'
+    + '<td>'+biasHtml+'</td>'
+    + '<td>'+scHtml+'</td>'
+    + '<td style="max-width:170px">'+indHtml+conHtml+'</td></tr>';
+}
+function renderPull(){
+  var d = curDate();
+  var day = strong[d]||{};
+  // 股池 = 三周期全站上
+  var p10=[], p20=[];
+  Object.keys(day).forEach(function(sym){
+    var r = day[sym];
+    if(!inPool(r)) return;   // 仅在强势股池内(并集)
+    if(r[6]===1 && r[9]>0) p10.push([sym, r]);
+    if(r[7]===1 && r[10]>0) p20.push([sym, r]);
+  });
+  p10.sort(function(a,b){ return b[1][9]-a[1][9] || b[1][3]-a[1][3]; });  // 强势评分→强度 双排序
+  p20.sort(function(a,b){ return b[1][10]-a[1][10] || b[1][3]-a[1][3]; });
+  $('p10cnt').textContent = p10.length;
+  $('p20cnt').textContent = p20.length;
+
+  var show10 = pull10Expanded ? p10 : p10.slice(0,10);
+  var show20 = pull20Expanded ? p20 : p20.slice(0,10);
+  $('p10body').innerHTML = show10.map(function(x,i){
+    return pullRow(x[0], x[1], 4, 9).replace('<td></td>','<td>'+((pull10Expanded?0:i)+1)+'</td>');
+  }).join('') || '<tr><td colspan="8" style="text-align:center;color:var(--sub)">今日无回踩10日线个股</td></tr>';
+  $('p20body').innerHTML = show20.map(function(x,i){
+    return pullRow(x[0], x[1], 5, 10).replace('<td></td>','<td>'+((pull20Expanded?0:i)+1)+'</td>');
+  }).join('') || '<tr><td colspan="8" style="text-align:center;color:var(--sub)">今日无回踩20日线个股</td></tr>';
+  $('p10more').style.display = p10.length>10 ? 'block' : 'none';
+  $('p20more').style.display = p20.length>10 ? 'block' : 'none';
+  $('p10more').innerHTML = '<a href="javascript:void(0)">'+(pull10Expanded?'收起':'展开全部 '+p10.length+' 只')+'</a>';
+  $('p20more').innerHTML = '<a href="javascript:void(0)">'+(pull20Expanded?'收起':'展开全部 '+p20.length+' 只')+'</a>';
+}
+$('p10more').onclick = function(){ pull10Expanded=!pull10Expanded; renderPull(); };
+$('p20more').onclick = function(){ pull20Expanded=!pull20Expanded; renderPull(); };
+
+// 上涨逻辑生成: 简洁要点概括 (突出个股差异化特征)
+// r: [day,week,month,strength,bias10,bias20,pull10,pull20,form,p10s,p20s,bull,aboveYear,ret20,dayPct]
+function logicText(r){
+  var p = [];
+  // 1. 涨幅动能为第一特征 (最差异化)
+  if(r[13]!=null && r[13] >= 8) p.push('20日+'+r[13].toFixed(0)+'%');
+  // 2. 当日异动
+  if(r[14]!=null && r[14] >= 5) p.push('当日+'+r[14].toFixed(1)+'%');
+  else if(r[14]!=null && r[14] >= 2) p.push('温和放量');
+  // 3. 结构特征 (差异化补充)
+  if(r[12]===1) p.push('站上年线');
+  if(r[11]===1) p.push('均线多头');
+  // 4. 多周期
+  if(r[0]&&r[1]&&r[2]) p.push('三线共振');
+  else if(r[15]>=7 && (r[16]>=6 || r[3]>=50)) p.push('周月强势(连'+r[17]+'周/'+r[18]+'月)');
+  else if(r[0]&&r[1]) p.push('日周强势');
+  // 5. 回踩特征
+  if(r[6]===1) p.push('回踩MA10');
+  if(r[7]===1) p.push('回踩MA20');
+  return p.join('·') || '维持强势';
+}
+function buildList(){
+  var d = curDate();
+  var day = strong[d]||{};
+  var arr = Object.keys(day).filter(function(sym){ return pass(d, sym); });
+  if(searchKw){
+    var kw = searchKw.toLowerCase();
+    arr = arr.filter(function(s){
+      var m = meta[s]||[];
+      return s.toLowerCase().indexOf(kw)>=0 || (m[0]||'').toLowerCase().indexOf(kw)>=0;
+    });
+  }
+  var rows = arr.map(function(sym){
+    var r = day[sym];
+    var m = meta[sym]||['','--','--'];
+    return { sym:sym, name:m[0], close:m[1], pct:m[2], industry:m[3], concepts:m[4], r:r };
+  });
+  if(sortBy==='streak') rows.sort(function(a,b){ return (b.r[17]||0)-(a.r[17]||0) || (b.r[18]||0)-(a.r[18]||0) || b.r[3]-a.r[3]; });
+  else if(sortBy==='strDesc') rows.sort(function(a,b){ return b.r[3]-a.r[3]; });
+  else if(sortBy==='pctDesc') rows.sort(function(a,b){ return (b.pct||-999)-(a.pct||-999); });
+  else rows.sort(function(a,b){ return a.sym<b.sym?-1:1; });
+
+  var total = rows.length, pages = Math.max(1, Math.ceil(total/pageSize));
+  if(page>pages) page = pages;
+  var start=(page-1)*pageSize, slice = rows.slice(start, start+pageSize);
+
+  var html = '';
+  slice.forEach(function(it, i){
+    var r = it.r;
+    var indHtml = it.industry ? '<span style="display:inline-block;background:#e7f1fb;color:#1c7ed6;border-radius:4px;padding:1px 6px;font-size:12px;font-weight:600;margin-right:4px">'+it.industry+'</span>' : '';
+    var conHtml = (it.concepts||'').split(',').filter(Boolean).map(function(c){
+      return '<span style="display:inline-block;background:#f1f3f5;color:#495057;border-radius:4px;padding:1px 5px;font-size:11px;margin-right:3px">'+c+'</span>';
+    }).join('');
+    html += '<tr><td>'+(start+i+1)+'</td>'
+      + '<td class="code"><a class="sym-link" target="_blank" href="https://gu.qq.com/'+it.sym+'">'+symCode(it.sym)+'</a></td>'
+      + '<td>'+it.name+'</td>'
+      + '<td>'+(it.close==='--'?'--':Number(it.close).toFixed(2))+'</td>'
+      + '<td>'+fmtPct(it.pct)+'</td>'
+      + '<td><span style="font-weight:700;color:#e03131">周'+r[17]+'</span> / <span style="font-weight:700;color:#f08c00">月'+r[18]+'</span></td>'
+      + '<td style="max-width:240px">'+indHtml+conHtml+'</td>'
+      + '<td style="max-width:280px;font-size:12px;color:#495057">'+logicText(r)+'</td>'
+      + '<td class="'+(r[3]>=0?'up':'down')+'"><b>'+r[3].toFixed(1)+'</b></td>'
+      + '</tr>';
+  });
+  tbody.innerHTML = html;
+  emptyBox.style.display = total===0 ? 'block' : 'none';
+  $('pgInfo').textContent = page + '/' + pages;
+  $('pgPrev').disabled = page<=1;
+  $('pgNext').disabled = page>=pages;
+}
+
+// 图表
+var chart = null;
+function renderChart(){
+  if(!window.echarts) return;
+  if(chart) chart.dispose();
+  chart = echarts.init(document.getElementById('trend'));
+  var s3=[],s2=[],s1=[];
+  dates.forEach(function(d){ var s=summary[d]||[0,0,0]; s3.push(s[0]);s2.push(s[1]);s1.push(s[2]); });
+  chart.setOption({
+    tooltip:{trigger:'axis'},
+    legend:{data:['强势股池(并集)','日周月全站上','仅日线站上'],top:0},
+    grid:{left:44,right:16,top:36,bottom:24},
+    xAxis:{type:'category',data:dates,axisLabel:{fontSize:10,interval:19}},
+    yAxis:{type:'value',minInterval:50},
+    series:[
+      {name:'强势股池(并集)',type:'line',data:s3,smooth:true,symbolSize:4,itemStyle:{color:'#e03131'},lineStyle:{width:2}},
+      {name:'日周月全站上',type:'line',data:s2,smooth:true,symbolSize:4,itemStyle:{color:'#7950f2'},lineStyle:{width:1.4}},
+      {name:'仅日线站上',type:'line',data:s1,smooth:true,symbolSize:4,itemStyle:{color:'#1c7ed6'},lineStyle:{width:1.4}}
+    ]
+  });
+  chart.on('click', function(p){ if(p&&p.dataIndex!=null) selectDate(dates[p.dataIndex]); });
+}
+
+function selectDate(dstr){
+  var i = dates.indexOf(dstr);
+  if(i<0) return;
+  dateIdx = i; $('datePicker').value = dstr; page = 1;
+  blkFilter = '';   // 切日期时清除板块筛选(不同日期板块分布不同, 残留会误导)
+  renderCards(); renderChart(); buildList();
+}
+$('datePicker').addEventListener('change', function(){ selectDate($('datePicker').value); });
+$('btnPrev').onclick = function(){ if(dateIdx>0){ dateIdx--; selectDate(dates[dateIdx]); } };
+$('btnNext').onclick = function(){ if(dateIdx<dates.length-1){ dateIdx++; selectDate(dates[dateIdx]); } };
+$('btnLatest').onclick = function(){ selectDate(dates[dates.length-1]); };
+$('reqSel').addEventListener('change', function(){ req=parseInt(this.value,10); page=1; renderCards(); buildList(); });
+$('minStr').addEventListener('change', function(){ minStr=parseFloat(this.value); page=1; renderCards(); buildList(); });
+$('blkDim').addEventListener('change', function(){ blkDim=this.value; blkFilter=''; page=1; renderCards(); buildList(); });
+$('searchBox').addEventListener('input', function(){ searchKw=this.value.trim(); page=1; buildList(); });
+$('sortSel').addEventListener('change', function(){ sortBy=this.value; page=1; buildList(); });
+$('pgPrev').onclick = function(){ if(page>1){ page--; buildList(); } };
+$('pgNext').onclick = function(){ if(page<Math.ceil(buildTotal()/pageSize)){ page++; buildList(); } };
+function buildTotal(){
+  var d = curDate();
+  var day = strong[d]||{};
+  var arr = Object.keys(day).filter(function(sym){ return pass(d, sym); });
+  if(searchKw){
+    var kw = searchKw.toLowerCase();
+    arr = arr.filter(function(s){
+      var m = meta[s]||[];
+      return s.toLowerCase().indexOf(kw)>=0 || (m[0]||'').toLowerCase().indexOf(kw)>=0;
+    });
+  }
+  return arr.length;
+}
+
+renderCards(); renderChart(); buildList();
+})();
+</script>
+</body>
+</html>

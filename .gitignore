@@ -1,0 +1,13 @@
+# 数据（大文件，不入库）
+data/
+strong_data.js
+signal_data.js
+top5_data.js
+bt_sig_diag.js
+bt_data.js
+bt_data_w2.js
+data.js
+*.png
+__pycache__/
+*.pyc
+.DS_Store
