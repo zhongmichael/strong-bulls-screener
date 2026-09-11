@@ -2,7 +2,7 @@
 // 用法: node test_bd_parity.js
 const fs = require('fs');
 const vm = require('vm');
-const ROOT = '/Users/michael/Documents/golden-system/td9-screener';
+const ROOT = __dirname;
 
 const html = fs.readFileSync(ROOT + '/strong_screener.html', 'utf8');
 function extractFn(name){

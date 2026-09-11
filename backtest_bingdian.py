@@ -15,7 +15,9 @@ backtest_bingdian.py — 冰点策略回测
 import json, re, sys, math
 
 BD_TH = 30
-ROOT = '/Users/michael/Documents/golden-system/td9-screener/dist_strong'
+import os
+BASE = os.path.dirname(os.path.abspath(__file__))
+ROOT = BASE + '/dist_strong'
 
 def load_pack(name):
     s = open(ROOT + '/' + name, encoding='utf-8').read()
@@ -259,7 +261,7 @@ def main():
                stats=dict(n=n, mean=mean, med=med, win=win, day_avg=day_avg,
                           bench_avg=bench_avg, comp=(comp-1)*100, bcomp=(bcomp-1)*100,
                           skipped=skipped, ndays=len(day_rows)))
-    with open('/Users/michael/Documents/golden-system/td9-screener/backtest_bingdian_data.json', 'w', encoding='utf-8') as f:
+    with open(BASE + '/backtest_bingdian_data.json', 'w', encoding='utf-8') as f:
         json.dump(out, f, ensure_ascii=False)
     print('已导出 backtest_bingdian_data.json')
     render_report(out)
@@ -343,7 +345,7 @@ window.addEventListener('resize', function(){ ch.resize(); });
     html = (html.replace('__W0__', out['window'][0]).replace('__W1__', out['window'][1])
             .replace('__N__', str(s['n'])).replace('__SKIP__', str(s['skipped']))
             .replace('__DAYS__', day_rows_js).replace('__TRD__', trades_js).replace('__ST__', st_js))
-    p = '/Users/michael/Documents/golden-system/td9-screener/backtest_bingdian.html'
+    p = BASE + '/backtest_bingdian.html'
     open(p, 'w', encoding='utf-8').write(html)
     print('报告已生成:', p)
 

@@ -13,7 +13,9 @@ backtest_s11.py — S11 最终综合策略: 三桶 TOP10 (S1~S10c 全部结论�
 """
 import json, sys
 
-sys.path.insert(0, '/Users/michael/Documents/golden-system/td9-screener')
+import os
+BASE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, BASE)
 from backtest_bingdian import build, BD_TH, zt_limit  # noqa
 from backtest_bingdian_multi import MultiBacktest, STRATS  # noqa
 
@@ -201,7 +203,7 @@ def main():
                summary=summary,
                days={c: results[c]['days'] for c, _, _ in all_strats},
                trades={c: results[c]['trades'] for c, _, _ in all_strats})
-    with open('/Users/michael/Documents/golden-system/td9-screener/backtest_s11_data.json', 'w', encoding='utf-8') as f:
+    with open(BASE + '/backtest_s11_data.json', 'w', encoding='utf-8') as f:
         json.dump(out, f, ensure_ascii=False)
     render_report(out)
     print('\n已导出 backtest_s11_data.json / backtest_s11.html')
@@ -325,7 +327,7 @@ window.addEventListener('resize', function(){ ch.resize(); });
             .replace('__ND__', str(out['ndays_trigger'])).replace('__SDESC__', sdesc)
             .replace('__SM__', sm).replace('__DAYS__', days)
             .replace('__ST__', strats).replace('__T11__', t11).replace('__T11B__', t11b))
-    p = '/Users/michael/Documents/golden-system/td9-screener/backtest_s11.html'
+    p = BASE + '/backtest_s11.html'
     open(p, 'w', encoding='utf-8').write(html)
 
 

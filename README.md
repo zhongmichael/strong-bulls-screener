@@ -127,8 +127,8 @@
 ### 1. 克隆并安装
 
 ```bash
-git clone <仓库地址>
-cd td9-screener
+git clone https://github.com/zhongmichael/strong-bulls-screener.git
+cd strong-bulls-screener
 
 # 只需安装 numpy（见 requirements.txt）
 pip3 install -r requirements.txt
@@ -174,7 +174,7 @@ bash update_all.sh        # 收盘后运行（15:30 之后）
 ## 📁 项目结构
 
 ```
-td9-screener/
+strong-bulls-screener/
 ├── strong_screener.html      # ★ 主页面源文件（三个模块都在这个文件里：选股器 / 涨幅榜 / 涨停梯队）
 ├── requirements.txt          # Python 依赖（仅 numpy）
 ├── compute_strong.py         # ★ 选股器：强势/回踩评分算法（离线全量）

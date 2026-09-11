@@ -15,7 +15,9 @@ S6 口径(与 S1~S5 同触发/同交易规则):
 """
 import json, sys
 
-sys.path.insert(0, '/Users/michael/Documents/golden-system/td9-screener')
+import os
+BASE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, BASE)
 from backtest_bingdian import build, BD_TH  # noqa
 from backtest_bingdian_multi import MultiBacktest, STRATS  # noqa
 
@@ -179,7 +181,7 @@ def main():
                summary=summary,
                days={c: results[c]['days'] for c, _, _ in all_strats},
                trades={c: results[c]['trades'] for c, _, _ in all_strats})
-    with open('/Users/michael/Documents/golden-system/td9-screener/backtest_s6_data.json', 'w', encoding='utf-8') as f:
+    with open(BASE + '/backtest_s6_data.json', 'w', encoding='utf-8') as f:
         json.dump(out, f, ensure_ascii=False)
     render_report(out)
     print('\n已导出 backtest_s6_data.json / backtest_s6.html')
@@ -286,7 +288,7 @@ window.addEventListener('resize', function(){ ch.resize(); });
             .replace('__ND__', str(out['ndays_trigger'])).replace('__SDESC__', sdesc)
             .replace('__SM__', sm).replace('__DAYS__', days).replace('__TRD__', '{}')
             .replace('__ST__', strats).replace('__T6__', s6tr).replace('__T6B__', s6btr))
-    p = '/Users/michael/Documents/golden-system/td9-screener/backtest_s6.html'
+    p = BASE + '/backtest_s6.html'
     open(p, 'w', encoding='utf-8').write(html)
 
 

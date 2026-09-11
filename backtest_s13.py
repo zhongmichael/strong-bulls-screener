@@ -20,7 +20,9 @@ backtest_s13.py — S13: 情绪周期"大冰点"策略框架回测
 """
 import json, sys, collections
 
-sys.path.insert(0, '/Users/michael/Documents/golden-system/td9-screener')
+import os
+BASE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, BASE)
 from backtest_bingdian import build, BD_TH, zt_limit  # noqa
 from backtest_bingdian_multi import MultiBacktest, STRATS  # noqa
 
@@ -315,7 +317,7 @@ def main():
                s5_split=dict(rep_n=len(grp['rep']), rep_avg=round(sum(grp['rep']) / len(grp['rep']), 2) if grp['rep'] else None,
                              ext_n=len(grp['ext']), ext_avg=round(sum(grp['ext']) / len(grp['ext']), 2) if grp['ext'] else None),
                days=res, )
-    with open('/Users/michael/Documents/golden-system/td9-screener/backtest_s13_data.json', 'w', encoding='utf-8') as f:
+    with open(BASE + '/backtest_s13_data.json', 'w', encoding='utf-8') as f:
         json.dump(out, f, ensure_ascii=False)
     render_report(out)
     print('\n已导出 backtest_s13_data.json / backtest_s13.html')
@@ -399,7 +401,7 @@ window.addEventListener('resize', function(){ ch.resize(); });
             .replace('__NI__', str(out['ndays_ice'])).replace('__NB__', str(out['n_big']))
             .replace('__SM__', sm).replace('__DMD__', dm).replace('__DAYS__', days)
             .replace('__EXT__', extf).replace('__S5S__', s5s))
-    p = '/Users/michael/Documents/golden-system/td9-screener/backtest_s13.html'
+    p = BASE + '/backtest_s13.html'
     open(p, 'w', encoding='utf-8').write(html)
 
 

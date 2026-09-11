@@ -13,7 +13,9 @@ S7b = 弹性桶放宽为"当日涨幅>=7%"大阳线(未封死也算), 验证口�
 """
 import json, sys
 
-sys.path.insert(0, '/Users/michael/Documents/golden-system/td9-screener')
+import os
+BASE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, BASE)
 from backtest_bingdian import build, BD_TH, zt_limit  # noqa
 from backtest_bingdian_multi import MultiBacktest, STRATS  # noqa
 
@@ -205,7 +207,7 @@ def main():
                summary=summary,
                days={c: results[c]['days'] for c, _, _ in all_strats},
                trades={c: results[c]['trades'] for c, _, _ in all_strats})
-    with open('/Users/michael/Documents/golden-system/td9-screener/backtest_s7_data.json', 'w', encoding='utf-8') as f:
+    with open(BASE + '/backtest_s7_data.json', 'w', encoding='utf-8') as f:
         json.dump(out, f, ensure_ascii=False)
     render_report(out)
     print('\n已导出 backtest_s7_data.json / backtest_s7.html')
@@ -327,7 +329,7 @@ window.addEventListener('resize', function(){ ch.resize(); });
             .replace('__ND__', str(out['ndays_trigger'])).replace('__SDESC__', sdesc)
             .replace('__SM__', sm).replace('__DAYS__', days)
             .replace('__ST__', strats).replace('__T7__', t7).replace('__T7B__', t7b))
-    p = '/Users/michael/Documents/golden-system/td9-screener/backtest_s7.html'
+    p = BASE + '/backtest_s7.html'
     open(p, 'w', encoding='utf-8').write(html)
 
 

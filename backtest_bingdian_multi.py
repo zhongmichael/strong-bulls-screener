@@ -14,8 +14,10 @@ backtest_bingdian_multi.py — 冰点日 TOP10 多策略对比回测
 import json, sys
 
 BD_TH = 30
-ROOT = '/Users/michael/Documents/golden-system/td9-screener/dist_strong'
-sys.path.insert(0, '/Users/michael/Documents/golden-system/td9-screener')
+import os
+BASE = os.path.dirname(os.path.abspath(__file__))
+ROOT = BASE + '/dist_strong'
+sys.path.insert(0, BASE)
 from backtest_bingdian import build, BD_TH, zt_limit  # noqa
 
 def ma_of(closes, nn):
@@ -276,7 +278,7 @@ def main():
                summary=summary,
                days={c: results[c]['days'] for c, _, _ in STRATS},
                trades={c: results[c]['trades'] for c, _, _ in STRATS})
-    with open('/Users/michael/Documents/golden-system/td9-screener/backtest_bingdian_multi_data.json', 'w', encoding='utf-8') as f:
+    with open(BASE + '/backtest_bingdian_multi_data.json', 'w', encoding='utf-8') as f:
         json.dump(out, f, ensure_ascii=False)
     render_report(out)
     print('\n已导出 backtest_bingdian_multi_data.json / backtest_bingdian_multi.html')
@@ -372,7 +374,7 @@ window.addEventListener('resize', function(){ ch.resize(); });
             .replace('__ND__', str(out['ndays_trigger'])).replace('__SDESC__', sdesc)
             .replace('__SM__', sm).replace('__DAYS__', days).replace('__TRD__', trades)
             .replace('__ST__', strats))
-    p = '/Users/michael/Documents/golden-system/td9-screener/backtest_bingdian_multi.html'
+    p = BASE + '/backtest_bingdian_multi.html'
     open(p, 'w', encoding='utf-8').write(html)
 
 if __name__ == '__main__':
