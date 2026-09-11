@@ -118,17 +118,23 @@
 
 ### 环境要求
 
-- **Python 3.9+**（数据抓取与计算）
-- **Node.js 18+**（`server.js` 零第三方依赖，仅用标准库；`node --version` 可验证）
-
-无需 `npm install` / `pip install`，脚本只用标准库与 `urllib`。
+| 依赖 | 版本 | 说明 |
+|---|---|---|
+| **Python** | 3.9+ | 数据抓取与计算 |
+| **numpy** | ≥ 1.19 | `compute_strong.py` / `compute_buydian_v21.py` 依赖（其余脚本只用标准库） |
+| **Node.js** | 18+ | `server.js` / `refresh_core.js` **零第三方依赖**，只用标准库，无需 `npm install` |
 
 ### 1. 克隆并安装
 
 ```bash
 git clone <仓库地址>
 cd td9-screener
+
+# 只需安装 numpy（见 requirements.txt）
+pip3 install -r requirements.txt
 ```
+
+> 除 numpy 外无任何第三方依赖：抓取脚本用 `urllib`，服务端用 Node 标准库。
 
 ### 2. 准备数据（首次，约 5~10 分钟）
 
@@ -170,6 +176,7 @@ bash update_all.sh        # 收盘后运行（15:30 之后）
 ```
 td9-screener/
 ├── strong_screener.html      # ★ 主页面源文件（三个模块都在这个文件里：选股器 / 涨幅榜 / 涨停梯队）
+├── requirements.txt          # Python 依赖（仅 numpy）
 ├── compute_strong.py         # ★ 选股器：强势/回踩评分算法（离线全量）
 ├── compute_buydian_v21.py    # ★ 选股器：V2.1 买点算法（离线全量）
 ├── gen_gain_board.py         # ★ 涨幅榜 + 涨停梯队：生成 gain_board.js / year_kline.js
@@ -201,6 +208,7 @@ td9-screener/
 |---|---|---|
 | `strong_screener.html` | **主页面（三个模块的入口）**：含选股器主逻辑、V2.1 买点、涨停梯队、涨幅榜四个 IIFE 模块 | 全部 |
 | `buydian_v21.html` | 独立 V2.1 买点页 | 📋 选股器 |
+| `requirements.txt` | Python 依赖清单（仅 `numpy`） | 全部 |
 | `compute_strong.py` | 全市场强势/回踩/强度计算（多进程） | 📋 选股器 |
 | `compute_buydian_v21.py` | V2.1 买点算法（逐日 S/A/B/C 分级） | 📋 选股器 |
 | `gen_buydian_v21_page.py` | 打包 V2.1 网页数据（`buydian_v21_data.js`） | 📋 选股器 |

@@ -1,0 +1,11 @@
+# 多周期强势股选股器 —— Python 运行环境依赖
+#
+# 安装：
+#   pip3 install -r requirements.txt
+#
+# 说明：
+#   · 仅 compute_strong.py / compute_buydian_v21.py / compute_signals.py / signals.py
+#     使用 numpy（array / cumsum / full / insert / isnan / zeros 等基础 API）；
+#     其余脚本（抓取、打包、补 bar）只用标准库。
+#   · Node 侧（server.js / refresh_core.js）零第三方依赖，无需 npm install。
+numpy>=1.19
