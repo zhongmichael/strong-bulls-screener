@@ -132,7 +132,7 @@ footer{margin-top:16px;font-size:12px;color:var(--sub);line-height:1.7;border-to
   <header>
     <div>
       <h1>多周期强势股选股器 <span class="tag">日/周/月 三线共振</span></h1>
-      <div class="sub">日K / 周K / 月K 同时站上各自 MA5（5日线）的强势个股 · 全A股 <span id="stkCnt">--</span> 只 · 数据截至 2026-08-21</div>
+      <div class="sub">日K / 周K / 月K 同时站上各自 MA5（5日线）的强势个股 · 全A股 <span id="stkCnt">--</span> 只 · 数据截至 <span id="hdrDate">--</span></div>
     </div>
     <div class="sub" id="genInfo"></div>
   </header>
@@ -403,7 +403,7 @@ footer{margin-top:16px;font-size:12px;color:var(--sub);line-height:1.7;border-to
   <footer>
     <b>选股逻辑</b>：强势股池 = <b>周月持续强势</b>：周线近10周≥7周站上周MA5（核心），且月线近12月≥6月站上月MA5 或 三周期强度≥50（月线不足时用高强度补偿）。<b>"日周月全站上MA5"不作为强势依据</b>——只是当日勉强站上三线（如方大集团周线仅5/10、强度5.6），非强势股。周K/月K按"截至所选日期"动态聚合，每日自动更新——跌破条件即剔除出池。药明康德（周10/10、月9/12）、哈药股份（周8/10、强度78）即通过本规则入选。<br>
     <b>回踩信号（强势回踩评分模型）</b>：🔵 回踩10日线 = 股池内收盘偏离MA10 0~2.5% 且盘中触及；🟠 回踩20日线 = 收盘偏离MA20 0~2.5% 且盘中触及。两栏均按<b>强势回踩评分</b>排序（0~100）：前期涨幅(近20日≥15%满分) + 均线多头排列与斜率向上 + 回踩缩量(10日&lt;0.8×量/20日&lt;0.7×量) + K线止跌(长下影/阳线/阳包阴) + 收回速度(站回MA5) + 周线多头配合；<b>突破回踩有效性约束</b>：回踩节奏(当日大阴线实体≤-3.2%重罚-20，阴线实体逐日收窄=动能衰竭+4) + 深度极限(盘中深破均线3%以上=跌入前期箱体下半部-15) + 时间过滤(连续≥6日站不回MA5=久盘必跌-20，≤2日快速企稳+5) + 量能对比(较近20日突破峰值量显著缩量+5，接近突破量=抛压未消化-5)；放量长阴破位、均线走平向下、周线走坏等失败形态被降权或剔除。回踩均线代表强势股回调至支撑位，是潜在低吸观察点，需结合量能与大盘环境判断。<br>
-    行情为前复权日K，数据来源腾讯自选股行情接口，统计截至 2026-08-21 收盘。<br>
+    行情为前复权日K，数据来源腾讯自选股行情接口，统计截至 <span id="ftrDate">--</span> 收盘。<br>
     <b>免责声明</b>：以上内容基于公开数据和量化分析，仅供参考，不构成投资建议。市场有风险，投资需谨慎。任何投资决策应结合个人风险承受能力、资金状况和投资目标独立判断，必要时咨询持牌专业机构。过往表现不预示未来收益。
   </footer>
 </div>
@@ -596,7 +596,12 @@ var tbody=$('tbody'), emptyBox=$('emptyBox');
 $('datePicker').min = dates[0]; $('datePicker').max = dates[dates.length-1];
 $('datePicker').value = dates[dateIdx];
 $('stkCnt').textContent = Object.keys(meta).length;
-$('genInfo').textContent = '数据生成于 ' + (D.gen||'') + ' · 共 ' + dates.length + ' 个交易日';
+// 头部/footer 的「数据截至」必须跟随数据末日动态显示。原先是写死的 2026-08-21,
+// 而服务端每日增量刷新早已推进到最新交易日, 用户会误以为数据没更新(2026-09-11 反馈)。
+var lastDataDate = dates[dates.length - 1];
+$('hdrDate').textContent = lastDataDate;
+if($('ftrDate')) $('ftrDate').textContent = lastDataDate;
+$('genInfo').textContent = '数据包生成于 ' + String(D.gen||'').replace(/^auto-/,'') + ' · 共 ' + dates.length + ' 个交易日';
 
 function curDate(){ return dates[dateIdx]; }
 function symCode(sym){ return sym.replace(/^(sh|sz|bj)/,''); }

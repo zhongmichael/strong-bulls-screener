@@ -908,6 +908,11 @@ async function refreshAll(dir, opts){
   if(!opts.dry){
     // 写回(顺带更新 gain_board.date 显示用字段)
     gb.date = res.latestDate;
+    // strong_data 的 gen 也必须跟着更新: 离线脚本(update_all.sh/update_strong.py)会写
+    // 'auto-<当天>', 服务端原先只写数据不动 gen, 导致页面「数据包生成于」永远停在最后一次
+    // 离线全量的日期(线上长期显示 auto-2026-09-05), 而 dates 其实每天都在推进
+    // → 用户误以为数据没有实时更新(2026-09-11 反馈)。与 BD21 包(上方)写法保持一致。
+    strong.gen = 'auto-' + dstr(new Date());
     writeJsGz(dir, 'strong_data', strong);
     writeJsGz(dir, 'year_kline', yk);
     writeJsGz(dir, 'kline_ref', ref);
