@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>周K红9延迟买入回测：T2买入持有3周</title>
+<script src="echarts.min.js"></script>
+<style>
+:root{
+  --bg:#f5f6fa; --card:#ffffff; --line:#e3e6ef; --text:#1f2430; --sub:#6b7280;
+  --red:#e03131; --red-bg:#fdecec; --green:#0ca678; --blue:#1c7ed6; --blue-bg:#e7f1fb;
+  --purple:#7950f2; --purple-bg:#f0ebfd; --orange:#f08c00; --orange-bg:#fff3e0;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;font-size:14px}
+.wrap{max-width:1180px;margin:0 auto;padding:22px 16px 60px}
+header{margin-bottom:18px}
+h1{font-size:23px;font-weight:700}
+h1 .tag{font-size:13px;font-weight:400;color:#fff;background:var(--purple);border-radius:4px;padding:2px 8px;margin-left:8px;vertical-align:3px}
+.sub{color:var(--sub);font-size:13px;margin-top:5px;line-height:1.6}
+.tldr{background:linear-gradient(135deg,#faf5ff,#f3f0ff);border:1px solid #e0d5ff;border-radius:12px;padding:16px 20px;margin-bottom:16px}
+.tldr h3{font-size:15px;color:#5f3dc4;margin-bottom:8px}
+.tldr p{font-size:14px;line-height:1.8;color:#3b2a6e}
+.tldr b{color:#e03131}
+.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.card .label{font-size:12px;color:var(--sub)}
+.card .num{font-size:26px;font-weight:700;margin-top:5px}
+.card .num small{font-size:13px;font-weight:400;color:var(--sub);margin-left:3px}
+.card .desc{font-size:11px;color:var(--sub);margin-top:4px}
+.card.n1 .num{color:var(--purple)} .card.n2 .num{color:var(--red)} .card.n3 .num{color:var(--blue)} .card.n4 .num{color:var(--orange)}
+.chart-card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-bottom:14px}
+.chart-card h3{font-size:15px;margin-bottom:2px}
+.chart-card .tip{font-size:12px;color:var(--sub);margin-bottom:8px}
+#compare{width:100%;height:340px}
+#hist{width:100%;height:300px}
+#byyear{width:100%;height:320px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead th{background:#f8f9fc;color:var(--sub);font-weight:600;text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}
+tbody td{padding:7px 10px;border-bottom:1px solid #eef0f6}
+.up{color:var(--red);font-weight:600}.down{color:var(--green);font-weight:600}
+.method{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 18px;margin-bottom:14px}
+.method h3{font-size:15px;margin-bottom:8px}
+.method ol{margin-left:20px;color:var(--text);line-height:1.9}
+.method li::marker{color:var(--purple);font-weight:700}
+footer{margin-top:16px;font-size:12px;color:var(--sub);line-height:1.7;border-top:1px solid var(--line);padding-top:12px}
+@media(max-width:860px){.cards{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>周K红9延迟买入回测：T2收盘买入·持有3周 <span class="tag">买入时点敏感性</span></h1>
+    <div class="sub">信号周 T0（周线红9）→ T2 周收盘买入 → 持有 T3/T4/T5 三周 → T5 收盘卖出 · 全 A 股 4596 只 · 前复权周K</div>
+  </header>
+
+  <div class="tldr">
+    <h3>核心结论（TL;DR）</h3>
+    <p>主口径（T2收盘买入、持有3周）6,581 个样本：<b>平均 +1.25%</b>、中位数 <b>0.00%</b>、胜率 <b>49.6%</b>——与"信号周立即买入持有3周"（平均 +1.49%、胜率 53.9%）相比<b>并无优势，反而略差</b>：红9后首周反弹（T0~T1）贡献了主要收益，延迟两周会错过。分年差异极大：<b>2024年样本平均 -1.11%、胜率仅 32.5%</b>（单边下跌环境信号失效），2025/2026 年（震荡修复）平均 +2.9%/+2.5%、胜率 60% 上下。结论：<b>该策略的价值取决于市场环境</b>——震荡市可用作低位埋伏参考，单边熊市应规避；延迟买入不能改善胜率。</p>
+  </div>
+
+  <div class="cards">
+    <div class="card n1">
+      <div class="label">样本数</div>
+      <div class="num" id="cN">--</div>
+      <div class="desc">周线红9信号（T0后至少有6周）</div>
+    </div>
+    <div class="card n2">
+      <div class="label">平均收益率</div>
+      <div class="num" id="cMean">--</div>
+      <div class="desc">T5收盘 / T2收盘 - 1</div>
+    </div>
+    <div class="card n3">
+      <div class="label">中位数收益率</div>
+      <div class="num" id="cMed">--</div>
+      <div class="desc">50%分位样本收益</div>
+    </div>
+    <div class="card n4">
+      <div class="label">胜率</div>
+      <div class="num" id="cWin">--</div>
+      <div class="desc">持有3周后收益 &gt; 0 的比例</div>
+    </div>
+  </div>
+
+  <div class="chart-card">
+    <h3>买入时点 × 持有期 收益率对比（全样本均值%）</h3>
+    <div class="tip">主口径 = T2买入持有3周（紫色高亮）· 对照：T0/T1买入持有3周、T2买入持有2/4周</div>
+    <div id="compare"></div>
+  </div>
+
+  <div class="chart-card">
+    <h3>主口径收益分布直方图（T2买入·持有3周）</h3>
+    <div class="tip">横轴为收益区间(%) · 红柱=盈利样本 · 绿柱=亏损样本 · 中位在 0% 附近</div>
+    <div id="hist"></div>
+  </div>
+
+  <div class="chart-card">
+    <h3>分年度对比（主口径 T2买入持有3周）</h3>
+    <div class="tip">2024 单边弱市 vs 2025/2026 震荡修复 · 样本环境决定策略有效性</div>
+    <div id="byyear"></div>
+  </div>
+
+  <div class="chart-card">
+    <h3>各买入时点统计明细表</h3>
+    <div class="tip">单位：% · 收益率 = 卖出周收盘 / 买入周收盘 - 1</div>
+    <table>
+      <thead><tr><th>策略</th><th>买入时点</th><th>持有</th><th>卖出</th><th>样本</th><th>平均</th><th>中位数</th><th>胜率</th><th>P25</th><th>P75</th><th>最大</th><th>最小</th></tr></thead>
+      <tbody id="detailTbody"></tbody>
+    </table>
+  </div>
+
+  <div class="method">
+    <h3>回测方法说明</h3>
+    <ol>
+      <li><b>信号</b>：TD Sequential 周线红9 = 周K收盘连续 9 周满足「收盘 &lt; 4 周前收盘」，第 9 周计数==9。</li>
+      <li><b>主口径时序</b>：T0=信号周 → T1/T2=信号后第1/2周 → <b>T2 周收盘买入</b> → 持有 T3、T4、T5 三周 → <b>T5 周收盘卖出</b>。收益率 = T5收盘/T2收盘 − 1。</li>
+      <li><b>对照口径</b>：T0收盘买入持有3周（T3卖）、T1收盘买入持有3周（T4卖）、T2买入持有2周（T4卖）、T2买入持有4周（T6卖），用于评估"延迟买入"与"持有期"的边际影响。</li>
+      <li><b>数据</b>：全 A 股 4596 只（剔除周K不足14根者），前复权周K，区间 2024-01 ~ 2026-08-21；信号周后不足 6 周者剔除。</li>
+      <li><b>口径</b>：同一股票可多次触发；未计交易成本、涨跌停、停牌；分年按信号触发年份。</li>
+    </ol>
+  </div>
+
+  <footer>
+    数据来源：腾讯自选股公开行情接口（前复权周K，2024-01 ~ 2026-08-21）。回测为历史统计，样本受市场环境影响大。<br>
+    <b>免责声明</b>：以上内容基于公开数据和量化分析，仅供参考，不构成投资建议。市场有风险，投资需谨慎。任何投资决策应结合个人风险承受能力、资金状况和投资目标独立判断，必要时咨询持牌专业机构。过往表现不预示未来收益。
+  </footer>
+</div>
+
+<script src="bt_data_w2.js"></script>
+<script>
+(function(){
+'use strict';
+var D = window.BT_W2;
+if(!D){ document.body.innerHTML='<p style="padding:40px">数据文件 bt_data_w2.js 未加载</p>'; return; }
+var MAIN = D.t2_hold3;
+function fmtP(v){
+  var s = (v>=0?'+':'')+v.toFixed(2)+'%';
+  return s==='+0.00%' ? '0.00%' : s;
+}
+
+document.getElementById('cN').textContent = MAIN.n.toLocaleString();
+document.getElementById('cMean').textContent = fmtP(MAIN.mean);
+document.getElementById('cMed').textContent = fmtP(MAIN.median);
+document.getElementById('cWin').textContent = MAIN.win+'%';
+
+// 明细表
+var CONFIGS = [
+  ['t0_hold3','T0信号周收盘','3周','T3','信号即买(基准)'],
+  ['t1_hold3','T1周收盘','3周','T4','延迟1周'],
+  ['t2_hold3','T2周收盘','3周','T5','主口径'],
+  ['t2_hold2','T2周收盘','2周','T4','持有2周'],
+  ['t2_hold4','T2周收盘','4周','T6','持有4周']
+];
+var th = '';
+CONFIGS.forEach(function(c){
+  var r = D[c[0]];
+  if(!r.n) return;
+  var isMain = c[0]==='t2_hold3';
+  var fmt = function(v){ return v===0 ? '0.00%' : (v>=0?'+':'')+v.toFixed(2)+'%'; };
+  th += '<tr'+(isMain?' style="background:#faf5ff"':'')+'>'
+    + '<td><b>'+c[4]+(isMain?' ★':'')+'</b></td>'
+    + '<td>'+c[1]+'</td><td>'+c[2]+'</td><td>'+c[3]+'</td>'
+    + '<td>'+r.n.toLocaleString()+'</td>'
+    + '<td class="'+(r.mean>=0?'up':'down')+'">'+fmt(r.mean)+'</td>'
+    + '<td class="'+(r.median>=0?'up':'down')+'">'+fmt(r.median)+'</td>'
+    + '<td class="'+(r.win>=50?'up':'down')+'">'+r.win+'%</td>'
+    + '<td>'+fmt(r.quantiles.p25)+'</td><td>'+fmt(r.quantiles.p75)+'</td>'
+    + '<td class="up">'+fmt(r.max)+'</td>'
+    + '<td class="down">'+fmt(r.min)+'</td></tr>';
+});
+document.getElementById('detailTbody').innerHTML = th;
+
+// 图1: 买入时点×持有期对比
+var labels = ['T0买·持3周','T1买·持3周','T2买·持3周 ★','T2买·持2周','T2买·持4周'];
+var keys = ['t0_hold3','t1_hold3','t2_hold3','t2_hold2','t2_hold4'];
+var means = keys.map(function(k){ return D[k].mean; });
+var wins = keys.map(function(k){ return D[k].win; });
+echarts.init(document.getElementById('compare')).setOption({
+  tooltip: { trigger:'axis' },
+  legend: { data:['平均收益%','胜率%'], top:0 },
+  grid: { left:46, right:40, top:36, bottom:26 },
+  xAxis: { type:'category', data:labels },
+  yAxis: [
+    { type:'value', name:'平均收益%', axisLabel:{ formatter:'{value}%' } },
+    { type:'value', name:'胜率%', min:40, max:60, axisLabel:{ formatter:'{value}%' } }
+  ],
+  series: [
+    { name:'平均收益%', type:'bar', data:means, barWidth:26,
+      itemStyle:{ color:function(p){ return p.dataIndex===2 ? '#7950f2' : '#e03131'; }, borderRadius:[4,4,0,0] },
+      label:{ show:true, position:'top', formatter:function(p){ return (p.value>=0?'+':'')+p.value+'%'; }, fontSize:11 } },
+    { name:'胜率%', type:'line', yAxisIndex:1, data:wins, symbol:'circle', symbolSize:8,
+      lineStyle:{ width:2, color:'#1c7ed6' }, itemStyle:{ color:'#1c7ed6' },
+      label:{ show:true, formatter:'{c}%', fontSize:11, color:'#555' } }
+  ]
+});
+
+// 图2: 直方图
+var hist = MAIN.hist;
+var bins = Object.keys(hist).map(Number).sort(function(a,b){return a-b;});
+var histData = bins.map(function(b){ return { value: hist[b], bin: b }; });
+var maxH = Math.max.apply(null, bins.map(function(b){ return hist[b]; }));
+echarts.init(document.getElementById('hist')).setOption({
+  tooltip: { trigger:'item', formatter: function(p){
+    var b = p.data.bin;
+    return '['+b+'%, '+(b+5)+'%)<br>样本数: <b>'+p.value+'</b>';
+  }},
+  grid: { left:44, right:16, top:20, bottom:28 },
+  xAxis: { type:'category', data: bins.map(function(b){ return b+'~'+(b+5); }), axisLabel:{ fontSize:9, interval:Math.floor(bins.length/16) } },
+  yAxis: { type:'value' },
+  series: [{
+    type:'bar', data:histData, barMaxWidth:14,
+    itemStyle:{ color:function(p){ return p.data.bin >= 0 ? '#e03131' : '#0ca678'; } },
+    markLine:{ silent:true, symbol:'none', label:{ show:false },
+      data:[{ xAxis: bins.indexOf(Math.round(MAIN.median)) , lineStyle:{type:'dashed',color:'#adb5bd'}}] }
+  }]
+});
+
+// 图3: 分年
+var yrs = Object.keys(MAIN.years).sort();
+echarts.init(document.getElementById('byyear')).setOption({
+  tooltip: { trigger:'axis' },
+  legend: { data:['平均收益%','中位数%','胜率%'], top:0 },
+  grid: { left:46, right:40, top:36, bottom:26 },
+  xAxis: { type:'category', data: yrs.map(function(y){ return y+'年<br><span style="font-size:11px;color:#888">n='+MAIN.years[y].n+'</span>'; }) },
+  yAxis: [
+    { type:'value', name:'收益%', axisLabel:{ formatter:'{value}%' } },
+    { type:'value', name:'胜率%', min:0, max:100, axisLabel:{ formatter:'{value}%' } }
+  ],
+  series: [
+    { name:'平均收益%', type:'bar', data: yrs.map(function(y){ return MAIN.years[y].mean; }),
+      itemStyle:{ color:'#e03131', borderRadius:[4,4,0,0] },
+      label:{ show:true, position:'top', formatter:function(p){ return (p.value>=0?'+':'')+p.value+'%'; }, fontSize:11 } },
+    { name:'中位数%', type:'bar', data: yrs.map(function(y){ return MAIN.years[y].median; }),
+      itemStyle:{ color:'#f08c00', borderRadius:[4,4,0,0] },
+      label:{ show:true, position:'bottom', formatter:function(p){ return (p.value>=0?'+':'')+p.value+'%'; }, fontSize:11 } },
+    { name:'胜率%', type:'line', yAxisIndex:1, data: yrs.map(function(y){ return MAIN.years[y].win; }),
+      symbol:'circle', symbolSize:8, lineStyle:{ width:2, color:'#1c7ed6' }, itemStyle:{ color:'#1c7ed6' },
+      label:{ show:true, formatter:'{c}%', fontSize:11 } }
+  ]
+});
+})();
+</script>
+</body>
+</html>

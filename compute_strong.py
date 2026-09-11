@@ -18,6 +18,13 @@
   6. 收回速度 (0-15):  收盘>MA5 +8, 收盘>目标均线 +7
   7. 大周期配合 (0-10): 周收盘>周MA5 +6, >周MA10 +4
   失败形态剔除: 放量长阴破位 / 均线明显向下 / 周线走坏
+  突破回踩有效性约束 (v4.1, 参考"突破回踩如何确认有效"标准):
+  8. 回踩节奏 (±20/4): 当日大阴线(实体≤-3.2%)-20 (大阴线砸下=假突破信号);
+     阴线实体较昨日收窄过半 +4 (碎步下跌/动能衰竭)
+  9. 深度极限 (-15): 盘中低点深破目标均线3%以上 (深入前期箱体下半部, 突破宣告失败)
+  10. 时间过滤 (±20/5): 连续≥6日收盘站不回MA5 -20 (久盘必跌); ≤2日快速企稳 +5
+  11. 突破量对比 (±5): 当日量<近20日突破峰值量55% +5 (放量突破→缩量回踩, 健康);
+      ≥85% -5 (回踩量接近突破日, 抛压未消化)
 
 输出: data/out/strong_2026.json
   {date: {sym: [day_ok, week_ok, month_ok, strength,
@@ -119,6 +126,39 @@ def score_pullback(i, o, h, l, c, v, ma5, ma10, ma20,
     if wi >= 9:
         w10 = sum(wcloses[wi-9:wi+1]) / 10
         if c[i] > w10: score += 4
+    # --- 8. 回踩节奏 (突破回踩有效性: 大阴线否决 / 动能衰竭加分) ---
+    body = c[i] - o[i]
+    if i >= 1:
+        p_body = c[i-1] - o[i-1]
+        if body < 0 and c[i] > 0 and body / c[i] <= -0.032:
+            score -= 20                          # 当日大阴线: 空头力量极强, 大概率假突破
+        elif body < 0 and p_body < 0 and body > p_body * 0.5:
+            score += 4                           # 阴线实体较昨日收窄过半: 下跌动能衰竭
+    # --- 9. 深度极限 (不能深入前期震荡箱体下半部) ---
+    if l[i] < tgt * 0.97:
+        score -= 15                              # 盘中深破均线3%以上: 突破宣告失败
+    # --- 10. 时间过滤 (有效回踩3-5根K线内企稳, 久盘必跌) ---
+    pull_days = 0
+    j = i
+    while j >= 0 and j > i - 12:
+        m5v = ma5[j]
+        if not np.isnan(m5v) and c[j] < m5v:
+            pull_days += 1
+            j -= 1
+        else:
+            break
+    if pull_days >= 6:
+        score -= 20                              # 连续6日以上站不回MA5: 久盘横盘
+    elif pull_days <= 2:
+        score += 5                               # 快速企稳
+    # --- 11. 突破放量→回踩缩量 对比 (放量突破是前提, 缩量回踩是过程) ---
+    if i >= 5:
+        v_brk = float(np.max(v[max(0, i - 20):i]))   # 近20日峰值量≈突破日量
+        if v_brk > 0:
+            if v[i] < v_brk * 0.55:
+                score += 5                           # 较突破日显著缩量
+            elif v[i] >= v_brk * 0.85:
+                score -= 5                           # 回踩量接近突破日: 抛压未消化
     return round(max(min(score, 100), 0), 1)
 
 def process_stock(fp):

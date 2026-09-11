@@ -1,14 +1,55 @@
-# 数据（大文件，不入库）
+# ============================================================
+# 多周期强势股选股器 — 仓库只存「源码」，不存「数据」
+# ------------------------------------------------------------
+# 数据包体积巨大（合计 1GB+），全部由脚本生成，不入库：
+#   - 原始K线: data/kline/*.json        ← fetch_kline.py / update_all.sh 拉取
+#   - 数据包 : *.js / *.js.gz           ← compute_*.py 计算 + rebuild_gz.py 压缩
+# 协作者拉下仓库后，按 README「数据准备」一节重建即可。
+# ============================================================
+
+# ---------- 原始数据（体积大） ----------
 data/
+
+# ---------- 根目录生成的数据包（window.XXX = {...}） ----------
 strong_data.js
+kline_ref.js
+year_kline.js
+gain_board.js
 signal_data.js
 top5_data.js
-bt_sig_diag.js
+data.js
+buydian_v21_data.js
 bt_data.js
 bt_data_w2.js
-data.js
-*.png
+bt_sig_diag.js
+
+# ---------- 压缩产物 ----------
+*.gz
+
+# ---------- 部署目录 dist_strong：保留代码，排除数据 ----------
+# 以下 5 个数据包 + 运行时状态由 update_all.sh 生成
+dist_strong/strong_data.js
+dist_strong/kline_ref.js
+dist_strong/year_kline.js
+dist_strong/gain_board.js
+dist_strong/buydian_v21_data.js
+dist_strong/refresh_state.json
+
+# ---------- 备份 / 归档目录 ----------
+dist_strong_backup_*/
+backup_*/
+# 拉线上数据做对照的临时文件（务必勿入库，2026-09-05 曾误传 143MB）
+*.online.js
+*.online.html
+
+# ---------- 运行时 / 工具链 ----------
 __pycache__/
 *.pyc
+.venv/
+
+# ---------- 私有工作区（含个人运维记录，不入库） ----------
+.workbuddy/
+
+# ---------- 系统 / 编辑器 ----------
 .DS_Store
-buydian_v21_data.js
+*.png

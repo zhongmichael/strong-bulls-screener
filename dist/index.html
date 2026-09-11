@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>神奇九转选股器 · 日/周/月线红9</title>
+<script src="echarts.min.js"></script>
+<style>
+:root{
+  --bg:#f5f6fa; --card:#ffffff; --line:#e3e6ef; --text:#1f2430; --sub:#6b7280;
+  --red:#e03131; --red-bg:#fdecec; --green:#0ca678; --blue:#1c7ed6; --blue-bg:#e7f1fb;
+  --purple:#7950f2; --purple-bg:#f0ebfd; --orange:#f08c00; --orange-bg:#fff3e0;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;font-size:14px}
+.wrap{max-width:1200px;margin:0 auto;padding:20px 16px 60px}
+header{display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+h1{font-size:24px;font-weight:700}
+h1 .tag{font-size:13px;font-weight:400;color:#fff;background:var(--red);border-radius:4px;padding:2px 8px;margin-left:8px;vertical-align:3px}
+.sub{color:var(--sub);font-size:13px;margin-top:4px}
+/* 日期控制 */
+.ctrl{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-bottom:14px;display:flex;flex-wrap:wrap;align-items:center;gap:12px}
+.ctrl label{color:var(--sub);font-size:13px}
+.ctrl input[type=date]{border:1px solid var(--line);border-radius:6px;padding:6px 10px;font-size:14px;color:var(--text);background:#fff}
+.ctrl .btn{border:1px solid var(--line);background:#fff;border-radius:6px;padding:6px 12px;font-size:13px;cursor:pointer;color:var(--text)}
+.ctrl .btn:hover{background:var(--blue-bg);border-color:var(--blue);color:var(--blue)}
+.ctrl .dayinfo{color:var(--blue);font-size:13px;font-weight:600}
+.ctrl .hint{color:var(--sub);font-size:12px;margin-left:auto}
+/* 统计卡 */
+.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px 18px;position:relative;cursor:pointer;transition:box-shadow .15s}
+.card:hover{box-shadow:0 4px 14px rgba(0,0,0,.06)}
+.card.active{outline:2px solid var(--blue);outline-offset:-1px}
+.card .label{font-size:13px;color:var(--sub);display:flex;align-items:center;gap:6px}
+.card .num{font-size:32px;font-weight:700;margin-top:6px}
+.card .num small{font-size:14px;font-weight:400;color:var(--sub);margin-left:4px}
+.card .desc{font-size:12px;color:var(--sub);margin-top:4px}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%}
+.dot.d{background:var(--red)} .dot.w{background:var(--purple)} .dot.m{background:var(--orange)}
+.card.d .num{color:var(--red)} .card.w .num{color:var(--purple)} .card.m .num{color:var(--orange)}
+/* 图表 */
+.chart-card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-bottom:14px}
+.chart-card h3{font-size:15px;margin-bottom:4px}
+.chart-card .tip{font-size:12px;color:var(--sub);margin-bottom:8px}
+#trend{width:100%;height:300px}
+/* 列表 */
+.list-card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.tabbar{display:flex;gap:0;border-bottom:2px solid var(--line);margin-bottom:12px}
+.tab{padding:9px 18px;cursor:pointer;font-size:14px;color:var(--sub);border-bottom:2px solid transparent;margin-bottom:-2px}
+.tab b{font-weight:700}
+.tab:hover{color:var(--text)}
+.tab.on{color:var(--blue);border-bottom-color:var(--blue);font-weight:600}
+.tab .cnt{display:inline-block;background:var(--blue-bg);color:var(--blue);border-radius:10px;padding:0 7px;font-size:12px;margin-left:5px}
+.toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px}
+.toolbar input[type=text]{border:1px solid var(--line);border-radius:6px;padding:5px 10px;font-size:13px;width:220px}
+.toolbar select{border:1px solid var(--line);border-radius:6px;padding:5px 8px;font-size:13px;background:#fff}
+.pager{display:flex;gap:6px;align-items:center;font-size:13px;color:var(--sub)}
+.pager button{border:1px solid var(--line);background:#fff;border-radius:5px;padding:3px 10px;cursor:pointer}
+.pager button:hover:not(:disabled){background:var(--blue-bg);border-color:var(--blue);color:var(--blue)}
+.pager button:disabled{opacity:.4;cursor:default}
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead th{background:#f8f9fc;color:var(--sub);font-weight:600;text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);position:sticky;top:0;white-space:nowrap}
+tbody td{padding:7px 10px;border-bottom:1px solid #eef0f6;white-space:nowrap}
+tbody tr:hover{background:#f7f9ff}
+.code{font-family:Menlo,Consolas,monospace;font-weight:600}
+.name{color:var(--text)}
+.up{color:var(--red);font-weight:600}
+.down{color:var(--green);font-weight:600}
+.flat{color:var(--sub)}
+.sym-link{color:var(--blue);text-decoration:none}
+.sym-link:hover{text-decoration:underline}
+.empty{padding:40px;text-align:center;color:var(--sub);font-size:14px}
+footer{margin-top:18px;font-size:12px;color:var(--sub);line-height:1.7;border-top:1px solid var(--line);padding-top:12px}
+@media(max-width:760px){.cards{grid-template-columns:1fr}.wrap{padding:12px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>神奇九转选股器 <span class="tag">红9买入信号</span></h1>
+      <div class="sub">日线 / 周线 / 月线 三类红9统计 · 数据区间 2026-01-05 ~ 2026-08-21 · 全A股 <span id="stkCnt">--</span> 只</div>
+    </div>
+    <div class="sub" id="genInfo"></div>
+  </header>
+
+  <div class="ctrl">
+    <label>选择日期</label>
+    <input type="date" id="datePicker">
+    <button class="btn" id="btnPrev">‹ 前一日</button>
+    <button class="btn" id="btnNext">后一日 ›</button>
+    <button class="btn" id="btnToday">最新</button>
+    <button class="btn" id="btnFirst">最早</button>
+    <span class="dayinfo" id="dayInfo"></span>
+    <span class="hint">点击上方图表任意日期也可跳转</span>
+  </div>
+
+  <div class="cards">
+    <div class="card d active" id="cardDaily">
+      <div class="label"><span class="dot d"></span>日线红9</div>
+      <div class="num"><span id="nDaily">0</span><small>只</small></div>
+      <div class="desc">当日日线TD计数达到9 · 默认要求触发日站上年线</div>
+    </div>
+    <div class="card w" id="cardWeekly">
+      <div class="label"><span class="dot w"></span>周线红9</div>
+      <div class="num"><span id="nWeekly">0</span><small>只</small></div>
+      <div class="desc">截至当日所在周K线TD计数达到9 · 同受触发日均线过滤</div>
+    </div>
+    <div class="card m" id="cardMonthly">
+      <div class="label"><span class="dot m"></span>月线红9</div>
+      <div class="num"><span id="nMonthly">0</span><small>只</small></div>
+      <div class="desc">截至当月月K线TD计数达到9 · 同受触发日均线过滤</div>
+    </div>
+  </div>
+
+  <div class="chart-card">
+    <h3>2026年每日红9数量走势</h3>
+    <div class="tip">点击图中数据点可跳转到对应日期查看当日三类红9明细</div>
+    <div id="trend"></div>
+  </div>
+
+  <div class="list-card">
+    <div class="tabbar">
+      <div class="tab on" data-t="d">日线红9 <span class="cnt" id="tDaily">0</span></div>
+      <div class="tab" data-t="w">周线红9 <span class="cnt" id="tWeekly">0</span></div>
+      <div class="tab" data-t="m">月线红9 <span class="cnt" id="tMonthly">0</span></div>
+    </div>
+    <div class="toolbar">
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+        <input type="text" id="searchBox" placeholder="搜索代码 / 名称…">
+        <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:13px;color:var(--text)">
+          <input type="checkbox" id="maFilter" checked style="width:15px;height:15px;cursor:pointer">
+          <span>红9触发日站上半年线MA120 <span style="color:var(--sub);font-size:12px">(触发日收盘&gt;MA120)</span></span>
+        </label>
+        <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:13px;color:var(--text)">
+          <input type="checkbox" id="maYear" checked style="width:15px;height:15px;cursor:pointer">
+          <span>红9触发日站上年线MA250 <span style="color:var(--sub);font-size:12px">(触发日收盘&gt;MA250)</span></span>
+        </label>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <select id="sortSel">
+          <option value="code">按代码排序</option>
+          <option value="pctDesc">按当日涨跌幅 ↓</option>
+          <option value="pctAsc">按当日涨跌幅 ↑</option>
+        </select>
+        <div class="pager">
+          <button id="pgPrev">‹</button>
+          <span id="pgInfo">1/1</span>
+          <button id="pgNext">›</button>
+        </div>
+      </div>
+    </div>
+    <div style="max-height:520px;overflow:auto">
+      <table>
+        <thead><tr>
+          <th>#</th><th>代码</th><th>名称</th><th>触发日收盘</th><th>最新涨跌幅</th><th>触发日MA120</th><th>触发日MA250</th><th>均线状态</th><th>红9触发日</th><th>周期信号</th>
+        </tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+      <div class="empty" id="emptyBox" style="display:none">该日期无对应红9信号</div>
+    </div>
+  </div>
+
+  <footer>
+    数据说明：<b>神奇九转（TD Sequential）</b>红9买入信号 = 连续9根K线每根收盘价均低于4根K线前收盘价，第9根标记红9。周线/月线红9按"截至所选日期"的动态聚合K线计算（周中/月中亦即时更新）。<b>均线过滤</b>：默认要求<b>红9触发日收盘价站上年线MA250</b>（可取消勾选），并可同时要求站上半年线MA120；均线按触发日滚动计算（MA120=触发日前120个交易日收盘均值，MA250=前250个交易日）。行情为前复权日K，数据来源腾讯自选股行情接口，统计截至 2026-08-21 收盘。<br>
+    <b>免责声明</b>：以上内容基于公开数据和量化分析，仅供参考，不构成投资建议。市场有风险，投资需谨慎。任何投资决策应结合个人风险承受能力、资金状况和投资目标独立判断，必要时咨询持牌专业机构。过往表现不预示未来收益。
+  </footer>
+</div>
+
+<script src="data.js"></script>
+<script>
+(function(){
+'use strict';
+var D = window.TD9_DATA;
+if(!D){ document.body.innerHTML='<p style="padding:40px">数据文件 data.js 未加载</p>'; return; }
+
+var dates = D.trade_dates;          // 全部交易日
+var daily = D.daily, weekly = D.weekly, monthly = D.monthly;
+var meta = D.meta;                  // sym -> [name, last_close, last_pct]
+var triggerMa = D.trigger_ma || {}; // date -> {sym: [close, ma120, ma250, above120, above250]}
+var summary = D.summary;            // date -> [d,w,m]
+
+var dateIdx = dates.length - 1;     // 当前选中日期索引(默认最新)
+var curTab = 'd';
+var page = 1, pageSize = 50;
+var searchKw = '', sortBy = 'code';
+var maFilterOn = true;              // 均线过滤开关(默认开启)
+var maYearOn = true;                // 站上年线开关(默认开启)
+
+var $ = function(id){ return document.getElementById(id); };
+var datePicker = $('datePicker'), dayInfo = $('dayInfo');
+var nD=$('nDaily'), nW=$('nWeekly'), nM=$('nMonthly');
+var tD=$('tDaily'), tW=$('tWeekly'), tM=$('tMonthly');
+var tbody=$('tbody'), emptyBox=$('emptyBox');
+
+// 初始化日期选择器范围
+datePicker.min = dates[0]; datePicker.max = dates[dates.length-1];
+datePicker.value = dates[dateIdx];
+$('stkCnt').textContent = Object.keys(meta).length;
+$('genInfo').textContent = '数据生成于 ' + (D.generated||'') + ' · 共 ' + dates.length + ' 个交易日';
+
+function curDate(){ return dates[dateIdx]; }
+
+function fmtPct(p){
+  if(p===null||p===undefined||isNaN(p)) return '<span class="flat">--</span>';
+  var cls = p>0 ? 'up' : (p<0 ? 'down' : 'flat');
+  var sign = p>0 ? '+' : '';
+  return '<span class="'+cls+'">'+sign+p.toFixed(2)+'%</span>';
+}
+function symCode(sym){ return sym.replace(/^(sh|sz|bj)/,'').slice(0,6); }
+
+// ---- 渲染统计卡 ----
+function rawCounts(){
+  var d = curDate();
+  return { d:(daily[d]||[]).length, w:(weekly[d]||[]).length, m:(monthly[d]||[]).length };
+}
+// 触发日动态均线: 返回 [close, ma120, ma250, above120, above250] 或 null
+function triggerRec(date, sym){
+  var dm = triggerMa[date];
+  if(!dm) return null;
+  return dm[sym] || null;
+}
+// 过滤判断: 独立控制 半年线(maFilter) 与 年线(maYear) 两个开关
+function passMa(date, sym){
+  if(!maFilterOn && !maYearOn) return true;
+  var r = triggerRec(date, sym);
+  if(r){
+    // r: [close, ma120, ma250, above120, above250]
+    if(maFilterOn && r[3] !== true) return false;   // 开启则必须站上半年线
+    if(maYearOn && r[4] !== true) return false;     // 开启则必须站上年线
+    return true;
+  }
+  // 触发日无均线记录: 回退到 meta 最新值判断
+  var m = meta[sym]||[];
+  if(m.length < 7) return true;
+  if(maFilterOn && m[5] !== true) return false;
+  if(maYearOn && m[6] !== true) return false;
+  return true;
+}
+function renderCards(){
+  var d = curDate();
+  var dl = (daily[d]||[]).slice(), wl = (weekly[d]||[]).slice(), ml = (monthly[d]||[]).slice();
+  dl = dl.filter(function(s){ return passMa(d, s); });
+  wl = wl.filter(function(s){ return passMa(d, s); });
+  ml = ml.filter(function(s){ return passMa(d, s); });
+  nD.textContent = dl.length; nW.textContent = wl.length; nM.textContent = ml.length;
+  tD.textContent = dl.length; tW.textContent = wl.length; tM.textContent = ml.length;
+  var idx = dateIdx + 1;
+  dayInfo.textContent = '第 ' + idx + ' / ' + dates.length + ' 个交易日';
+}
+
+// ---- 列表渲染 ----
+function maStatusHtml(r){
+  // r: [close, ma120, ma250, above120, above250] 触发日数据
+  if(!r || r.length < 5 || r[1]==null || r[2]==null){
+    return '<span class="flat">--</span>';
+  }
+  var a120 = r[3]===true, a250 = r[4]===true;
+  if(a120 && a250) return '<span style="color:#0ca678;font-weight:600">双线之上</span>';
+  if(a120 && !a250) return '<span style="color:#e03131;font-weight:600">破年线</span>';
+  if(!a120 && a250) return '<span style="color:#e03131;font-weight:600">破半年线</span>';
+  return '<span style="color:#e03131;font-weight:600">双线之下</span>';
+}
+function buildList(){
+  var d = curDate();
+  var map = { d: daily, w: weekly, m: monthly }[curTab];
+  var arr = (map[d]||[]).slice();
+  arr = arr.filter(function(s){ return passMa(d, s); });
+  if(searchKw){
+    var kw = searchKw.toLowerCase();
+    arr = arr.filter(function(s){
+      var m = meta[s]||[];
+      return s.toLowerCase().indexOf(kw)>=0 || (m[0]||'').toLowerCase().indexOf(kw)>=0;
+    });
+  }
+  var metaArr = arr.map(function(s){
+    var m = meta[s]||['','--','--'];
+    var r = triggerRec(d, s);
+    return { sym:s, name:m[0], close:m[1], pct:m[2], ma:m, tr:r };
+  });
+  if(sortBy==='pctDesc') metaArr.sort(function(a,b){ return (b.pct||-999)-(a.pct||-999); });
+  else if(sortBy==='pctAsc') metaArr.sort(function(a,b){ return (a.pct||999)-(b.pct||999); });
+  else metaArr.sort(function(a,b){ return a.sym<b.sym?-1:1; });
+
+  var total = metaArr.length, pages = Math.max(1, Math.ceil(total/pageSize));
+  if(page>pages) page = pages;
+  var start = (page-1)*pageSize, slice = metaArr.slice(start, start+pageSize);
+
+  var html = '';
+  slice.forEach(function(it, i){
+    var trigLabel = curTab==='d' ? '日线' : (curTab==='w' ? '周线' : '月线');
+    var tr = it.tr;   // 触发日均线数据
+    html += '<tr><td>'+(start+i+1)+'</td>'
+      + '<td class="code"><a class="sym-link" target="_blank" href="https://gu.qq.com/'+it.sym+'">'+symCode(it.sym)+'</a></td>'
+      + '<td class="name">'+it.name+'</td>'
+      + '<td>'+(tr && tr[0]!=null ? Number(tr[0]).toFixed(2) : (it.close==='--'?'--':Number(it.close).toFixed(2)))+'</td>'
+      + '<td>'+fmtPct(it.pct)+'</td>'
+      + '<td>'+(tr && tr[1]!=null ? Number(tr[1]).toFixed(2) : (it.ma[3]==null?'--':Number(it.ma[3]).toFixed(2)))+'</td>'
+      + '<td>'+(tr && tr[2]!=null ? Number(tr[2]).toFixed(2) : (it.ma[4]==null?'--':Number(it.ma[4]).toFixed(2)))+'</td>'
+      + '<td>'+maStatusHtml(tr||it.ma)+'</td>'
+      + '<td>'+d+'</td>'
+      + '<td><span style="color:'+(curTab==='d'?'#e03131':(curTab==='w'?'#7950f2':'#f08c00'))+'">红9 · '+trigLabel+'</span></td>'
+      + '</tr>';
+  });
+  tbody.innerHTML = html;
+  emptyBox.style.display = total===0 ? 'block' : 'none';
+  document.getElementById('pgInfo').textContent = page + '/' + pages;
+  document.getElementById('pgPrev').disabled = page<=1;
+  document.getElementById('pgNext').disabled = page>=pages;
+}
+
+// ---- 图表 ----
+var chart = null;
+function renderChart(){
+  if(!window.echarts) return;
+  var xData = dates.slice();
+  var dArr = [], wArr = [], mArr = [];
+  dates.forEach(function(d){
+    var s = summary[d]||[0,0,0];
+    dArr.push(s[0]); wArr.push(s[1]); mArr.push(s[2]);
+  });
+  var opt = {
+    tooltip: { trigger:'axis' },
+    legend: { data:['日线红9','周线红9','月线红9'], top:0 },
+    grid: { left:40, right:16, top:36, bottom:24 },
+    xAxis: { type:'category', data:xData, axisLabel:{ fontSize:10, interval:19 } },
+    yAxis: { type:'value', minInterval:1 },
+    series: [
+      { name:'日线红9', type:'line', data:dArr, smooth:true, symbolSize:4,
+        itemStyle:{ color:'#e03131' }, lineStyle:{ width:1.6 } },
+      { name:'周线红9', type:'line', data:wArr, smooth:true, symbolSize:4,
+        itemStyle:{ color:'#7950f2' }, lineStyle:{ width:1.4 } },
+      { name:'月线红9', type:'line', data:mArr, smooth:true, symbolSize:4,
+        itemStyle:{ color:'#f08c00' }, lineStyle:{ width:1.4 } }
+    ]
+  };
+  if(chart) chart.dispose();
+  chart = echarts.init(document.getElementById('trend'));
+  chart.setOption(opt);
+  chart.on('click', function(p){
+    if(p && p.dataIndex!=null){
+      selectDate(dates[p.dataIndex]);
+    }
+  });
+}
+
+// ---- 日期选择 ----
+function selectDate(dstr){
+  var i = dates.indexOf(dstr);
+  if(i<0) return;
+  dateIdx = i;
+  datePicker.value = dstr;
+  page = 1;
+  renderCards(); renderChart(); buildList();
+}
+datePicker.addEventListener('change', function(){ selectDate(datePicker.value); });
+$('btnPrev').onclick = function(){ if(dateIdx>0){ dateIdx--; selectDate(dates[dateIdx]); } };
+$('btnNext').onclick = function(){ if(dateIdx<dates.length-1){ dateIdx++; selectDate(dates[dateIdx]); } };
+$('btnToday').onclick = function(){ selectDate(dates[dates.length-1]); };
+$('btnFirst').onclick = function(){ selectDate(dates[0]); };
+
+// tab 切换
+document.querySelectorAll('.tab').forEach(function(t){
+  t.onclick = function(){
+    document.querySelectorAll('.tab').forEach(function(x){ x.classList.remove('on'); });
+    t.classList.add('on');
+    document.querySelectorAll('.card').forEach(function(x){ x.classList.remove('active'); });
+    $('card'+{d:'Daily',w:'Weekly',m:'Monthly'}[t.getAttribute('data-t')]).classList.add('active');
+    curTab = t.getAttribute('data-t');
+    page = 1;
+    renderCards(); buildList();
+  };
+});
+// 卡片点击切tab
+$('cardDaily').onclick = function(){ switchTab('d'); };
+$('cardWeekly').onclick = function(){ switchTab('w'); };
+$('cardMonthly').onclick = function(){ switchTab('m'); };
+function switchTab(t){
+  document.querySelectorAll('.tab').forEach(function(x){ x.classList.remove('on'); });
+  document.querySelector('.tab[data-t="'+t+'"]').classList.add('on');
+  document.querySelectorAll('.card').forEach(function(x){ x.classList.remove('active'); });
+  $('card'+{d:'Daily',w:'Weekly',m:'Monthly'}[t]).classList.add('active');
+  curTab = t; page = 1;
+  renderCards(); buildList();
+}
+// 搜索/排序/分页
+$('searchBox').addEventListener('input', function(){ searchKw=this.value.trim(); page=1; buildList(); });
+$('sortSel').addEventListener('change', function(){ sortBy=this.value; page=1; buildList(); });
+$('pgPrev').onclick = function(){ if(page>1){ page--; buildList(); } };
+$('pgNext').onclick = function(){ var p=Math.ceil(buildList_total()/pageSize); if(page<p){ page++; buildList(); } };
+$('maFilter').addEventListener('change', function(){
+  maFilterOn = this.checked;
+  page = 1;
+  renderCards(); buildList();
+});
+$('maYear').addEventListener('change', function(){
+  maYearOn = this.checked;
+  page = 1;
+  renderCards(); buildList();
+});
+function buildList_total(){
+  var d = curDate();
+  var map = { d: daily, w: weekly, m: monthly }[curTab];
+  var arr = (map[d]||[]).slice();
+  arr = arr.filter(function(s){ return passMa(d, s); });
+  if(searchKw){
+    var kw = searchKw.toLowerCase();
+    arr = arr.filter(function(s){
+      var m = meta[s]||[];
+      return s.toLowerCase().indexOf(kw)>=0 || (m[0]||'').toLowerCase().indexOf(kw)>=0;
+    });
+  }
+  return arr.length;
+}
+
+// 初始化
+renderCards(); renderChart(); buildList();
+})();
+</script>
+</body>
+</html>

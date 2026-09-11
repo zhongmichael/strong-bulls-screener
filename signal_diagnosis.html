@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>信号有效性诊断：追高问题回测</title>
+<script src="echarts.min.js"></script>
+<style>
+:root{--bg:#f5f6fa;--card:#fff;--line:#e3e6ef;--text:#1f2430;--sub:#6b7280;
+--red:#e03131;--green:#0ca678;--blue:#1c7ed6;--purple:#7950f2;--orange:#f08c00}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;font-size:14px}
+.wrap{max-width:1160px;margin:0 auto;padding:22px 16px 60px}
+h1{font-size:23px;font-weight:700}
+h1 .tag{font-size:13px;font-weight:400;color:#fff;background:var(--red);border-radius:4px;padding:2px 8px;margin-left:8px;vertical-align:3px}
+.sub{color:var(--sub);font-size:13px;margin-top:5px;line-height:1.6}
+.tldr{background:linear-gradient(135deg,#fff5f5,#fff0f0);border:1px solid #ffd8d8;border-radius:12px;padding:16px 20px;margin:14px 0}
+.tldr h3{font-size:15px;color:#c92a2a;margin-bottom:8px}
+.tldr p{font-size:14px;line-height:1.9;color:#5f3a3a}
+.tldr b{color:#e03131}
+.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:14px 0}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:13px 16px}
+.card .l{font-size:12px;color:var(--sub)}
+.card .n{font-size:25px;font-weight:700;margin-top:4px}
+.card .d{font-size:11px;color:var(--sub);margin-top:3px}
+.card.n1 .n{color:var(--red)}.card.n2 .n{color:var(--blue)}.card.n3 .n{color:var(--purple)}.card.n4 .n{color:var(--orange)}
+.chart-card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-bottom:14px}
+.chart-card h3{font-size:15px;margin-bottom:2px}
+.chart-card .tip{font-size:12px;color:var(--sub);margin-bottom:8px}
+#c1{width:100%;height:340px}#c2{width:100%;height:300px}#c3{width:100%;height:300px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead th{background:#f8f9fc;color:var(--sub);font-weight:600;text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}
+tbody td{padding:7px 10px;border-bottom:1px solid #eef0f6}
+.down{color:var(--green);font-weight:600}.up{color:var(--red);font-weight:600}
+.method{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 18px}
+.method h3{font-size:15px;margin-bottom:8px}
+.method ol{margin-left:20px;line-height:1.9}
+.method li::marker{color:var(--red);font-weight:700}
+footer{margin-top:14px;font-size:12px;color:var(--sub);line-height:1.7;border-top:1px solid var(--line);padding-top:12px}
+@media(max-width:860px){.cards{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>信号有效性诊断：共振选股为何"追高" <span class="tag">回测验证</span></h1>
+  <div class="sub">针对六类技术信号共振选股器 · 信号后 T+5/T+10/T+20 收益回测 · 2026-01 ~ 2026-08 全A股 4586 只</div>
+
+  <div class="tldr">
+    <h3>核心结论：您的观察得到数据证实</h3>
+    <p>① 六类共振信号整体<b>无正超额</b>：信号后 T+10 中位收益 <b>-1.14%</b>、胜率 44.2%，甚至略差于全市场随机买入（T+10 中位 -0.90%、胜率 45.5%）——2026 上半年为弱市，信号本身没有创造 alpha。<br>
+    ② <b>追高效应明确</b>：当日涨幅 ≥9% 才触发信号的股票，T+10 中位 <b>-1.96%</b>、T+20 达 <b>-6.44%</b>、胜率仅 44.5%/37.2%；而当日温和上涨 0~6% 的信号，T+10 中位约 <b>-0.6%</b>、胜率 48% 上下。<b>当日涨得越多，后续越差</b>。<br>
+    ③ <b>信号越多反而越差</b>：7+ 信号共振股 T+10 中位 -1.81%，显著差于 2 个信号的 -1.11%——高信号数往往来自"当日大涨"（大阳线/放量/突破同时触发），本质仍是追高。<br>
+    ④ 修正动作：评分公式已改为<b>对涨幅≥9%追高股减分(-2)</b>，对 6~9% 仅 +1，0~6% 温和上涨维持 +3~4；选股器同步新增"当日涨幅上限"筛选。</p>
+  </div>
+
+  <div class="cards">
+    <div class="card n1"><div class="l">全信号 T+10 中位</div><div class="n" id="k1">--</div><div class="d">胜率 --%</div></div>
+    <div class="card n2"><div class="l">全市场随机基准 T+10</div><div class="n" id="k2">--</div><div class="d">胜率 --%</div></div>
+    <div class="card n3"><div class="l">当日≥9%追高股 T+10</div><div class="n" id="k3">--</div><div class="d">胜率 --%</div></div>
+    <div class="card n4"><div class="l">当日0~6%温和股 T+10</div><div class="n" id="k4">--</div><div class="d">胜率 --%</div></div>
+  </div>
+
+  <div class="chart-card">
+    <h3>追高验证：按当日涨幅分桶的信号后收益</h3>
+    <div class="tip">横轴=信号触发当日涨幅 · 折线=各持有期收益中位数(%) · 越靠右（当日涨越多）后续走势越差</div>
+    <div id="c1"></div>
+  </div>
+
+  <div class="chart-card">
+    <h3>信号数量与后续收益：共振越多 ≠ 越好</h3>
+    <div class="tip">按触发信号数分档 · T+5/T+10/T+20 中位收益 · 信号数高往往源于当日大涨共振</div>
+    <div id="c2"></div>
+  </div>
+
+  <div class="chart-card">
+    <h3>六大类信号后效对比（T+10 中位收益%）</h3>
+    <div class="tip">量价/形态类信号后效偏弱 · K线/动量类相对抗跌 · 全部为负印证弱市环境</div>
+    <div id="c3"></div>
+  </div>
+
+  <div class="chart-card">
+    <h3>关键数据表</h3>
+    <table>
+      <thead><tr><th>分组</th><th>样本</th><th>T+5中位</th><th>T+5胜率</th><th>T+10中位</th><th>T+10胜率</th><th>T+20中位</th><th>T+20胜率</th></tr></thead>
+      <tbody id="tbl"></tbody>
+    </table>
+  </div>
+
+  <div class="method">
+    <h3>回测口径</h3>
+    <ol>
+      <li>信号日 T0 = 当日收盘触发；收益 = 信号日收盘买入、T+N 收盘卖出（N=5/10/20）。</li>
+      <li>覆盖 2026-01-05 ~ 2026-08-21 全部交易日、全 A 股 4586 只（前复权日K）。</li>
+      <li>基准：随机抽取 400 只股票全部交易日的 T+10 收益（n≈5.7万）——代表"无脑买入"的对照。</li>
+      <li>同一股票可多次触发，各信号独立计样；未计交易成本。</li>
+    </ol>
+  </div>
+
+  <footer>
+    数据来源：腾讯自选股公开行情接口（前复权日K，2024-01 ~ 2026-08-21），信号引擎为六类 35 信号体系。<br>
+    <b>免责声明</b>：以上内容基于公开数据和量化分析，仅供参考，不构成投资建议。市场有风险，投资需谨慎。任何投资决策应结合个人风险承受能力、资金状况和投资目标独立判断，必要时咨询持牌专业机构。过往表现不预示未来收益。
+  </footer>
+</div>
+
+<script src="bt_sig_diag.js"></script>
+<script>
+(function(){
+'use strict';
+var D = window.BT_DIAG;
+if(!D){ document.body.innerHTML='<p style="padding:40px">数据未加载</p>'; return; }
+var H = ['5','10','20'];
+var fmt = function(v){ return (v>=0?'+':'')+v.toFixed(2)+'%'; };
+var t10 = D.total['10'], bm = D.benchmark_t10;
+var p9 = D.by_pct['9+']['10'], p06 = D.by_pct['0-3']['10'];
+document.getElementById('k1').textContent = fmt(t10.median);
+document.querySelectorAll('#k1').forEach(function(e){}); 
+document.getElementById('k1').nextElementSibling.textContent = '胜率 ' + t10.win + '%';
+document.getElementById('k2').textContent = fmt(bm.median);
+document.getElementById('k2').nextElementSibling.textContent = '胜率 ' + bm.win + '%';
+document.getElementById('k3').textContent = fmt(p9.median);
+document.getElementById('k3').nextElementSibling.textContent = '胜率 ' + p9.win + '%';
+document.getElementById('k4').textContent = fmt(p06.median);
+document.getElementById('k4').nextElementSibling.textContent = '胜率 ' + p06.win + '%';
+
+// 图1: 当日涨幅分桶
+var buckets = ['<0','0-3','3-6','6-9','9+'];
+var labels = ['当日下跌','0~3%','3~6%','6~9%','≥9%(追高)'];
+var ser = H.map(function(h){
+  return {
+    name:'T+'+h, type:'line', smooth:true, symbol:'circle', symbolSize:7,
+    data: buckets.map(function(b){ return D.by_pct[b][h].median; }),
+    lineStyle:{width:2}
+  };
+});
+ser[0].itemStyle={color:'#1c7ed6'};ser[0].lineStyle.color='#1c7ed6';
+ser[1].itemStyle={color:'#7950f2'};ser[1].lineStyle.color='#7950f2';
+ser[2].itemStyle={color:'#e03131'};ser[2].lineStyle.color='#e03131';
+echarts.init(document.getElementById('c1')).setOption({
+  tooltip:{trigger:'axis', formatter:function(ps){var s=ps[0].axisValue+'<br>';ps.forEach(function(p){s+=p.seriesName+': <b>'+(p.value>=0?'+':'')+p.value+'%</b><br>';});return s;}},
+  legend:{data:['T+5','T+10','T+20'],top:0},
+  grid:{left:50,right:20,top:36,bottom:26},
+  xAxis:{type:'category',data:labels},
+  yAxis:{type:'value',axisLabel:{formatter:'{value}%'}},
+  series:ser
+});
+
+// 图2: 信号数分档
+var keys=['2','3','4','5','6','7+'];
+var ser2 = H.map(function(h){
+  return {name:'T+'+h, type:'line', smooth:true, symbol:'circle', symbolSize:7,
+    data: keys.map(function(k){ return (D.by_sig_n[k]||{})[h] ? D.by_sig_n[k][h].median : null; })};
+});
+ser2[0].itemStyle={color:'#1c7ed6'};ser2[1].itemStyle={color:'#7950f2'};ser2[2].itemStyle={color:'#e03131'};
+echarts.init(document.getElementById('c2')).setOption({
+  tooltip:{trigger:'axis'},
+  legend:{data:['T+5','T+10','T+20'],top:0},
+  grid:{left:50,right:20,top:36,bottom:26},
+  xAxis:{type:'category',data:keys.map(function(k){return k+'个信号';})},
+  yAxis:{type:'value',axisLabel:{formatter:'{value}%'}},
+  series:ser2
+});
+
+// 图3: 类别
+var cats = Object.keys(D.by_cat);
+var catData = cats.map(function(c){ return { name:c, value: D.by_cat[c]['10'].median }; });
+catData.sort(function(a,b){return a.value-b.value;});
+echarts.init(document.getElementById('c3')).setOption({
+  tooltip:{trigger:'item', formatter:function(p){ return p.name+'<br>T+10中位: <b>'+(p.value>=0?'+':'')+p.value+'%</b>'; }},
+  grid:{left:110,right:30,top:10,bottom:24},
+  xAxis:{type:'value',axisLabel:{formatter:'{value}%'}},
+  yAxis:{type:'category',data:catData.map(function(x){return x.name;})},
+  series:[{type:'bar',data:catData,barMaxWidth:22,
+    itemStyle:{color:function(p){return p.value>=0?'#e03131':'#0ca678';},borderRadius:[0,4,4,0]},
+    label:{show:true,position:'right',formatter:function(p){return (p.value>=0?'+':'')+p.value+'%';},fontSize:11}}]
+});
+
+// 表格
+var rows = [];
+rows.push(['全市场随机基准(T+10对照)','—', bm.median+'%', bm.win+'%']);
+H.forEach(function(h){
+  rows.push(['全信号均值 T+'+h, D.total[h].n, fmt(D.total[h].median), D.total[h].win+'%']);
+});
+buckets.forEach(function(b){
+  rows.push(['当日'+labels[buckets.indexOf(b)]+'信号', D.by_pct[b]['10'].n, fmt(D.by_pct[b]['10'].median), D.by_pct[b]['10'].win+'%']);
+});
+var th = '';
+rows.forEach(function(r){
+  var isHead = r[0].indexOf('基准')>=0;
+  th += '<tr'+(isHead?' style="background:#f8f9fc"':'')+'><td>'+(isHead?'<b>'+r[0]+'</b>':r[0])+'</td><td>'+r[1]+'</td>'
+    + '<td class="'+(parseFloat(r[2])<0?'down':'up')+'">'+r[2]+'</td><td>'+r[3]+'</td></tr>';
+});
+document.getElementById('tbl').innerHTML = th;
+})();
+</script>
+</body>
+</html>

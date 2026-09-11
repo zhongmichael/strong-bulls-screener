@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>周线红9后6周走势回测报告</title>
+<script src="echarts.min.js"></script>
+<style>
+:root{
+  --bg:#f5f6fa; --card:#ffffff; --line:#e3e6ef; --text:#1f2430; --sub:#6b7280;
+  --red:#e03131; --red-bg:#fdecec; --green:#0ca678; --blue:#1c7ed6; --blue-bg:#e7f1fb;
+  --purple:#7950f2; --purple-bg:#f0ebfd; --orange:#f08c00; --orange-bg:#fff3e0;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;font-size:14px}
+.wrap{max-width:1180px;margin:0 auto;padding:22px 16px 60px}
+header{margin-bottom:18px}
+h1{font-size:24px;font-weight:700}
+h1 .tag{font-size:13px;font-weight:400;color:#fff;background:var(--purple);border-radius:4px;padding:2px 8px;margin-left:8px;vertical-align:3px}
+.sub{color:var(--sub);font-size:13px;margin-top:5px;line-height:1.6}
+/* TLDR */
+.tldr{background:linear-gradient(135deg,#faf5ff,#f3f0ff);border:1px solid #e0d5ff;border-radius:12px;padding:16px 20px;margin-bottom:16px}
+.tldr h3{font-size:15px;color:#5f3dc4;margin-bottom:8px}
+.tldr p{font-size:14px;line-height:1.8;color:#3b2a6e}
+.tldr b{color:#e03131}
+/* 统计卡 */
+.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.card .label{font-size:12px;color:var(--sub)}
+.card .num{font-size:26px;font-weight:700;margin-top:5px}
+.card .num small{font-size:13px;font-weight:400;color:var(--sub);margin-left:3px}
+.card .desc{font-size:11px;color:var(--sub);margin-top:4px}
+.card.n1 .num{color:var(--purple)} .card.n2 .num{color:var(--red)} .card.n3 .num{color:var(--blue)} .card.n4 .num{color:var(--orange)}
+/* 图表卡 */
+.chart-card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-bottom:14px}
+.chart-card h3{font-size:15px;margin-bottom:2px}
+.chart-card .tip{font-size:12px;color:var(--sub);margin-bottom:8px}
+#trend{width:100%;height:380px}
+#winrate{width:100%;height:280px}
+#byyear{width:100%;height:300px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.two .chart-card{margin-bottom:0}
+/* 表格 */
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead th{background:#f8f9fc;color:var(--sub);font-weight:600;text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}
+tbody td{padding:7px 10px;border-bottom:1px solid #eef0f6}
+.up{color:var(--red);font-weight:600}.down{color:var(--green);font-weight:600}
+/* 方法说明 */
+.method{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 18px;margin-bottom:14px}
+.method h3{font-size:15px;margin-bottom:8px}
+.method ol{margin-left:20px;color:var(--text);line-height:1.9}
+.method li::marker{color:var(--purple);font-weight:700}
+footer{margin-top:16px;font-size:12px;color:var(--sub);line-height:1.7;border-top:1px solid var(--line);padding-top:12px}
+@media(max-width:860px){.cards{grid-template-columns:repeat(2,1fr)}.two{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>周线红9后6周走势回测报告 <span class="tag">TD Sequential 周线买入信号</span></h1>
+    <div class="sub">基于全 A 股 4596 只个股 · 周线TD计数==9（红9）信号 · 信号周收盘为基准，统计其后 6 周（T1~T6）收盘走势</div>
+  </header>
+
+  <div class="tldr">
+    <h3>核心结论（TL;DR）</h3>
+    <p>共捕获 <b>6,581</b> 个周线红9信号（2024-04 ~ 2026-07）。信号后 6 周整体呈<b>温和上行</b>：T6 平均收益 <b>+2.84%</b>，中位数 <b>+1.22%</b>，胜率约 <b>54.7%</b>；收益主要积累在 T3~T6（第3周后加速）。但波动较大——T6 的 25%~75% 分位区间为 <b>-5.9% ~ +8.8%</b>，信号并非"闭眼买入"，2024年样本中位数仍为负（-0.81%）。结论：周线红9在震荡/修复行情中偏有效，作为<b>择时参考</b>而非单一买入依据。</p>
+  </div>
+
+  <div class="cards">
+    <div class="card n1">
+      <div class="label">样本数</div>
+      <div class="num" id="cN">--</div>
+      <div class="desc">周线红9信号总数</div>
+    </div>
+    <div class="card n2">
+      <div class="label">T6 平均收益</div>
+      <div class="num" id="cMean">--</div>
+      <div class="desc">信号后6周收盘/信号周收盘-1</div>
+    </div>
+    <div class="card n3">
+      <div class="label">T6 中位数收益</div>
+      <div class="num" id="cMed">--</div>
+      <div class="desc">50%分位样本收益</div>
+    </div>
+    <div class="card n4">
+      <div class="label">T6 胜率</div>
+      <div class="num" id="cWin">--</div>
+      <div class="desc">6周后高于信号周收盘的比例</div>
+    </div>
+  </div>
+
+  <div class="chart-card">
+    <h3>周线红9后 6 周走势（T0=信号周收盘，基准 100）</h3>
+    <div class="tip">红色实线=全部样本平均 · 蓝色实线=中位数 · 灰色区域=25%~75% 分位带 · 点击图例可切换显示</div>
+    <div id="trend"></div>
+  </div>
+
+  <div class="two">
+    <div class="chart-card">
+      <h3>各周胜率（相对信号周收盘上涨占比）</h3>
+      <div class="tip">虚线=50% 分界 · 周线红9后第3周胜率最高</div>
+      <div id="winrate"></div>
+    </div>
+    <div class="chart-card">
+      <h3>分年度 T6 收益对比</h3>
+      <div class="tip">按信号触发年份分组 · 2025 年样本效果最佳</div>
+      <div id="byyear"></div>
+    </div>
+  </div>
+
+  <div class="chart-card">
+    <h3>周线红9后每周收益明细（T1~T6）</h3>
+    <div class="tip">单位：% · 涨跌幅均以信号周收盘价为基准</div>
+    <table>
+      <thead><tr><th>指标</th><th>T1</th><th>T2</th><th>T3</th><th>T4</th><th>T5</th><th>T6</th></tr></thead>
+      <tbody id="detailTbody"></tbody>
+    </table>
+  </div>
+
+  <div class="method">
+    <h3>回测方法说明</h3>
+    <ol>
+      <li><b>信号定义</b>：TD Sequential 周线红9 = 周K线收盘价连续 9 周满足「收盘 < 4 周前收盘」，第 9 周计数==9 即触发信号。</li>
+      <li><b>数据</b>：全 A 股 4596 只（剔除数据不足12周者），前复权周K线，来源腾讯自选股接口，区间 2024-01 ~ 2026-08-21。</li>
+      <li><b>基准</b>：信号周（T0）收盘价为 1.000；统计其后连续 6 个完整周（T1~T6）的收盘相对值；要求信号周后至少存在 6 个完整周。</li>
+      <li><b>口径</b>：同一股票可多次触发信号，各信号独立计为样本；未考虑交易成本、涨跌停限制、停牌复牌。</li>
+      <li><b>分组</b>：按信号触发年份（2024/2025/2026）统计 T6 均值与中位数，2026 年仅统计至 2026-07-10 前可回测的信号。</li>
+    </ol>
+  </div>
+
+  <footer>
+    数据来源：腾讯自选股公开行情接口（前复权周K，2024-01 ~ 2026-08-21）。回测为历史统计，样本受市场环境（震荡/单边）影响大。<br>
+    <b>免责声明</b>：以上内容基于公开数据和量化分析，仅供参考，不构成投资建议。市场有风险，投资需谨慎。任何投资决策应结合个人风险承受能力、资金状况和投资目标独立判断，必要时咨询持牌专业机构。过往表现不预示未来收益。
+  </footer>
+</div>
+
+<script src="bt_data.js"></script>
+<script>
+(function(){
+'use strict';
+var D = window.BT_DATA;
+if(!D){ document.body.innerHTML='<p style="padding:40px">回测数据文件 bt_data.js 未加载</p>'; return; }
+var A = D.agg;
+
+// 统计卡
+document.getElementById('cN').textContent = D.samples.toLocaleString();
+document.getElementById('cMean').textContent = (A.mean[5]*100-100 >= 0 ? '+' : '') + (A.mean[5]*100-100).toFixed(2) + '%';
+document.getElementById('cMed').textContent = (A.median[5]*100-100 >= 0 ? '+' : '') + (A.median[5]*100-100).toFixed(2) + '%';
+document.getElementById('cWin').textContent = A.win_rate[5] + '%';
+
+// 明细表
+var rows = [
+  ['平均收益', A.mean.map(function(v){return (v*100-100).toFixed(2)+'%';})],
+  ['中位数收益', A.median.map(function(v){return (v*100-100).toFixed(2)+'%';})],
+  ['25%分位', A.p25.map(function(v){return (v*100-100).toFixed(2)+'%';})],
+  ['75%分位', A.p75.map(function(v){return (v*100-100).toFixed(2)+'%';})],
+  ['胜率', A.win_rate.map(function(v){return v+'%';})]
+];
+var th = '';
+rows.forEach(function(r){
+  var cls = r[0]==='胜率' ? '' : '';
+  th += '<tr><td><b>'+r[0]+'</b></td>';
+  r[1].forEach(function(v){
+    var num = parseFloat(v);
+    var c = num > 0 ? 'up' : (num < 0 ? 'down' : '');
+    th += '<td class="'+c+'">'+v+'</td>';
+  });
+  th += '</tr>';
+});
+document.getElementById('detailTbody').innerHTML = th;
+
+// ---- 图1: 走势 + 分位带 ----
+var weeks = ['T0(信号周)', 'T1', 'T2', 'T3', 'T4', 'T5', 'T6'];
+var meanData = [100].concat(A.mean.map(function(v){return +(v*100).toFixed(2);}));
+var medData = [100].concat(A.median.map(function(v){return +(v*100).toFixed(2);}));
+var p25Data = [100].concat(A.p25.map(function(v){return +(v*100).toFixed(2);}));
+var p75Data = [100].concat(A.p75.map(function(v){return +(v*100).toFixed(2);}));
+
+echarts.init(document.getElementById('trend')).setOption({
+  tooltip: { trigger:'axis', formatter: function(ps){
+    var s = ps[0].axisValue + '<br>';
+    ps.forEach(function(p){
+      var nm = p.seriesName;
+      if(nm.indexOf('分位') >= 0) return;
+      var v = p.value, d = (v-100);
+      var c = d >= 0 ? '#e03131' : '#0ca678';
+      s += nm + ': <b style="color:'+c+'">' + (d>=0?'+':'') + d.toFixed(2) + '%</b><br>';
+    });
+    return s;
+  }},
+  legend: { data:['平均','中位数','25%~75%分位带'], top:0 },
+  grid: { left:52, right:20, top:40, bottom:30 },
+  xAxis: { type:'category', data:weeks },
+  yAxis: { type:'value', scale:true, axisLabel:{ formatter:'{value}' } },
+  series: [
+    { name:'25%~75%分位带', type:'line', data:p25Data, lineStyle:{opacity:0}, symbol:'none',
+      stack:'band', itemStyle:{color:'#e7d9ff'}, z:1 },
+    { name:'25%~75%分位带', type:'line', data:p75Data, lineStyle:{opacity:0}, symbol:'none',
+      stack:'band', areaStyle:{color:'#e7d9ff'}, itemStyle:{color:'#e7d9ff'}, z:1 },
+    { name:'平均', type:'line', data:meanData, smooth:true, symbol:'circle', symbolSize:6,
+      lineStyle:{width:2.5, color:'#e03131'}, itemStyle:{color:'#e03131'}, z:3 },
+    { name:'中位数', type:'line', data:medData, smooth:true, symbol:'circle', symbolSize:6,
+      lineStyle:{width:2, color:'#1c7ed6'}, itemStyle:{color:'#1c7ed6'}, z:3 }
+  ]
+});
+
+// ---- 图2: 胜率 ----
+echarts.init(document.getElementById('winrate')).setOption({
+  tooltip: { trigger:'axis', formatter: function(ps){
+    var p = ps[0];
+    return p.axisValue + '<br>胜率: <b>' + p.value + '%</b>';
+  }},
+  grid: { left:40, right:16, top:30, bottom:26 },
+  xAxis: { type:'category', data:weeks.slice(1) },
+  yAxis: { type:'value', min:40, max:60, axisLabel:{ formatter:'{value}%' } },
+  series: [{
+    type:'bar', data: A.win_rate,
+    itemStyle:{ color:function(p){
+      return p.value >= 50 ? '#e03131' : '#0ca678';
+    }, borderRadius:[4,4,0,0] },
+    label:{ show:true, position:'top', formatter:'{c}%', fontSize:11, color:'#555' },
+    markLine:{ silent:true, symbol:'none', data:[{ yAxis:50, lineStyle:{type:'dashed',color:'#adb5bd'} }] }
+  }]
+});
+
+// ---- 图3: 分年 ----
+var yrs = Object.keys(D.by_year).sort();
+echarts.init(document.getElementById('byyear')).setOption({
+  tooltip: { trigger:'axis' },
+  legend: { data:['T6平均','T6中位数'], top:0 },
+  grid: { left:44, right:16, top:36, bottom:26 },
+  xAxis: { type:'category', data: yrs.map(function(y){ return y + '年<br><span style="font-size:11px;color:#888">n=' + D.by_year[y].n + '</span>'; }) },
+  yAxis: { type:'value', axisLabel:{ formatter:'{value}%' } },
+  series: [
+    { name:'T6平均', type:'bar', data: yrs.map(function(y){ return D.by_year[y].t6_mean; }),
+      itemStyle:{ color:'#e03131', borderRadius:[4,4,0,0] },
+      label:{ show:true, position:'top', formatter:function(p){ return (p.value>=0?'+':'')+p.value+'%'; }, fontSize:11 } },
+    { name:'T6中位数', type:'bar', data: yrs.map(function(y){ return D.by_year[y].t6_median; }),
+      itemStyle:{ color:'#1c7ed6', borderRadius:[4,4,0,0] },
+      label:{ show:true, position:'bottom', formatter:function(p){ return (p.value>=0?'+':'')+p.value+'%'; }, fontSize:11 } }
+  ]
+});
+})();
+</script>
+</body>
+</html>

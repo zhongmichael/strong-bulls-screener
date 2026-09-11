@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>六类技术信号共振选股器</title>
+<script src="echarts.min.js"></script>
+<style>
+:root{
+  --bg:#f5f6fa; --card:#ffffff; --line:#e3e6ef; --text:#1f2430; --sub:#6b7280;
+  --red:#e03131; --red-bg:#fdecec; --green:#0ca678; --blue:#1c7ed6; --blue-bg:#e7f1fb;
+  --purple:#7950f2; --purple-bg:#f0ebfd; --orange:#f08c00; --orange-bg:#fff3e0;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;font-size:14px}
+.wrap{max-width:1200px;margin:0 auto;padding:20px 16px 60px}
+header{display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+h1{font-size:23px;font-weight:700}
+h1 .tag{font-size:13px;font-weight:400;color:#fff;background:var(--blue);border-radius:4px;padding:2px 8px;margin-left:8px;vertical-align:3px}
+.sub{color:var(--sub);font-size:13px;margin-top:4px;line-height:1.6}
+/* 日期控制 */
+.ctrl{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-bottom:14px;display:flex;flex-wrap:wrap;align-items:center;gap:12px}
+.ctrl label{color:var(--sub);font-size:13px}
+.ctrl input[type=date]{border:1px solid var(--line);border-radius:6px;padding:6px 10px;font-size:14px}
+.ctrl .btn{border:1px solid var(--line);background:#fff;border-radius:6px;padding:6px 12px;font-size:13px;cursor:pointer}
+.ctrl .btn:hover{background:var(--blue-bg);border-color:var(--blue);color:var(--blue)}
+.ctrl .dayinfo{color:var(--blue);font-size:13px;font-weight:600}
+/* 筛选条 */
+.filters{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-bottom:14px}
+.filters h3{font-size:14px;margin-bottom:10px;color:var(--text)}
+.filter-row{display:flex;flex-wrap:wrap;gap:16px;align-items:center;margin-bottom:10px}
+.filter-row:last-child{margin-bottom:0}
+.filter-item{display:flex;align-items:center;gap:6px;font-size:13px}
+.filter-item select{border:1px solid var(--line);border-radius:6px;padding:4px 8px;font-size:13px;background:#fff}
+.cat-toggle{display:flex;flex-wrap:wrap;gap:8px}
+.cat-chip{display:inline-flex;align-items:center;gap:5px;padding:5px 11px;border-radius:16px;font-size:12px;cursor:pointer;border:1px solid var(--line);background:#f8f9fc;user-select:none}
+.cat-chip.on{color:#fff;border-color:transparent;font-weight:600}
+.cat-chip input{display:none}
+/* 统计卡 */
+.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:13px 16px}
+.card .label{font-size:12px;color:var(--sub)}
+.card .num{font-size:26px;font-weight:700;margin-top:4px}
+.card .desc{font-size:11px;color:var(--sub);margin-top:3px}
+.card.n1 .num{color:var(--blue)} .card.n2 .num{color:var(--purple)} .card.n3 .num{color:var(--red)} .card.n4 .num{color:var(--orange)}
+/* 图表 */
+.chart-card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-bottom:14px}
+.chart-card h3{font-size:15px;margin-bottom:2px}
+.chart-card .tip{font-size:12px;color:var(--sub);margin-bottom:8px}
+#trend{width:100%;height:300px}
+/* 列表 */
+.top5-card{background:linear-gradient(135deg,#f0f4ff,#f5f0ff);border:1px solid #d0d9f5;border-radius:12px;padding:14px 16px;margin-bottom:14px}
+.top5-item{background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px 13px;cursor:pointer;transition:box-shadow .15s;position:relative}
+.top5-item:hover{box-shadow:0 4px 14px rgba(0,0,0,.08)}
+.top5-item .rank{position:absolute;top:-8px;left:-8px;width:26px;height:26px;border-radius:50%;background:linear-gradient(135deg,#f59f00,#e8590c);color:#fff;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(232,89,12,.3)}
+.top5-item .rk1{background:linear-gradient(135deg,#fcc419,#f76707)}
+.top5-item .rk2{background:linear-gradient(135deg,#adb5bd,#495057)}
+.top5-item .rk3{background:linear-gradient(135deg,#e9852c,#a05e1f)}
+.top5-item .nm{font-size:14px;font-weight:700;margin:4px 0 2px}
+.top5-item .sc{font-size:20px;font-weight:800;color:#1c7ed6}
+.top5-item .meta{font-size:11px;color:var(--sub);margin-top:2px}
+.top5-item .tags{margin-top:6px}
+.top5-item .tag{display:inline-block;padding:1px 6px;border-radius:8px;font-size:10px;color:#fff;margin:1px 2px 1px 0}
+.list-card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px}
+.toolbar input[type=text]{border:1px solid var(--line);border-radius:6px;padding:5px 10px;font-size:13px;width:200px}
+.pager{display:flex;gap:6px;align-items:center;font-size:13px;color:var(--sub)}
+.pager button{border:1px solid var(--line);background:#fff;border-radius:5px;padding:3px 10px;cursor:pointer}
+.pager button:disabled{opacity:.4;cursor:default}
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead th{background:#f8f9fc;color:var(--sub);font-weight:600;text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);position:sticky;top:0;white-space:nowrap}
+tbody td{padding:7px 10px;border-bottom:1px solid #eef0f6;vertical-align:top}
+tbody tr:hover{background:#f7f9ff}
+.code{font-family:Menlo,Consolas,monospace;font-weight:600}
+.sym-link{color:var(--blue);text-decoration:none}
+.up{color:var(--red);font-weight:600}.down{color:var(--green);font-weight:600}.flat{color:var(--sub)}
+.sig-badge{display:inline-block;padding:1px 7px;border-radius:10px;font-size:11px;margin:1px 2px 1px 0;color:#fff}
+.cat-num{font-size:15px;font-weight:700}
+.empty{padding:40px;text-align:center;color:var(--sub)}
+footer{margin-top:16px;font-size:12px;color:var(--sub);line-height:1.7;border-top:1px solid var(--line);padding-top:12px}
+@media(max-width:860px){.cards{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>六类技术信号共振选股器 <span class="tag">多指标交叉验证</span></h1>
+      <div class="sub">趋势跟踪 · 超买超卖 · 量价配合 · K线形态 · 图表形态 · 辅助指标 · 全A股 <span id="stkCnt">--</span> 只 · 数据截至 2026-08-21</div>
+    </div>
+    <div class="sub" id="genInfo"></div>
+  </header>
+
+  <div class="ctrl">
+    <label>选择日期</label>
+    <input type="date" id="datePicker">
+    <button class="btn" id="btnPrev">‹ 前一日</button>
+    <button class="btn" id="btnNext">后一日 ›</button>
+    <button class="btn" id="btnLatest">最新</button>
+    <span class="dayinfo" id="dayInfo"></span>
+    <span class="hint" style="color:var(--sub);font-size:12px;margin-left:auto">信号按当日触发计算 · 点击走势图可跳转日期</span>
+  </div>
+
+  <div class="filters">
+    <h3>信号筛选（多指标共振）</h3>
+    <div class="filter-row">
+      <div class="filter-item">至少 <select id="minSig"><option value="1">1</option><option value="2">2</option><option value="3" selected>3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option></select> 个信号</div>
+      <div class="filter-item">覆盖 <select id="minCat"><option value="1">1</option><option value="2" selected>2</option><option value="3">3</option><option value="4">4</option></select> 类指标</div>
+      <div class="filter-item">
+        <label style="display:flex;align-items:center;gap:4px;cursor:pointer">
+          <input type="checkbox" id="onlyYear" style="width:14px;height:14px">仅站上年线MA250
+        </label>
+      </div>
+      <div class="filter-item">
+        <label style="display:flex;align-items:center;gap:4px;cursor:pointer">
+          <input type="checkbox" id="excludeDown" checked style="width:14px;height:14px">剔除下跌趋势
+        </label>
+      </div>
+      <div class="filter-item">当日涨幅 &lt; <select id="maxPct">
+        <option value="99">不限</option>
+        <option value="9">9%</option>
+        <option value="6" selected>6%</option>
+        <option value="3">3%</option>
+      </select>（防追高）</div>
+    </div>
+    <div class="filter-row">
+      <div class="filter-item" style="color:var(--sub)">参与类别：</div>
+      <div class="cat-toggle" id="catToggle"></div>
+    </div>
+  </div>
+
+  <div class="top5-card" id="top5Card" style="display:none">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px">
+      <h3 style="font-size:16px">🏆 每日最强 5 股 <span id="top5Date" style="font-size:13px;color:var(--sub);font-weight:400"></span></h3>
+      <span style="font-size:12px;color:var(--sub)">综合评分：信号数+类别数+趋势+动量+量价+当日表现 · 满分约100</span>
+    </div>
+    <div id="top5List" style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px"></div>
+  </div>
+
+  <div class="cards">
+    <div class="card n1"><div class="label">当日触发信号股</div><div class="num" id="cAll">--</div><div class="desc">≥1个信号</div></div>
+    <div class="card n2"><div class="label">强共振股</div><div class="num" id="cReson">--</div><div class="desc">满足当前筛选条件</div></div>
+    <div class="card n3"><div class="label">信号数 TOP</div><div class="num" id="cTop">--</div><div class="desc">当日最多信号数</div></div>
+    <div class="card n4"><div class="label">6类全覆盖</div><div class="num" id="cAll6">--</div><div class="desc">六类指标均触发</div></div>
+  </div>
+
+  <div class="chart-card">
+    <h3>2026年每日强共振股数量走势</h3>
+    <div class="tip">按"≥3信号 且 ≥2类"口径统计 · 点击数据点跳转对应日期</div>
+    <div id="trend"></div>
+  </div>
+
+  <div class="list-card">
+    <div class="toolbar">
+      <input type="text" id="searchBox" placeholder="搜索代码 / 名称…">
+      <div style="display:flex;gap:8px;align-items:center">
+        <select id="sortSel">
+          <option value="sigDesc">按信号数 ↓</option>
+          <option value="catDesc">按类别数 ↓</option>
+          <option value="code">按代码</option>
+        </select>
+        <div class="pager">
+          <button id="pgPrev">‹</button><span id="pgInfo">1/1</span><button id="pgNext">›</button>
+        </div>
+      </div>
+    </div>
+    <div style="max-height:560px;overflow:auto">
+      <table>
+        <thead><tr>
+          <th>#</th><th>代码</th><th>名称</th><th>收盘价</th><th>涨跌幅</th><th>趋势</th><th>信号数</th><th>类别</th><th>触发信号明细</th>
+        </tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+      <div class="empty" id="emptyBox" style="display:none">无满足筛选条件的股票</div>
+    </div>
+  </div>
+
+  <footer>
+    <b>信号体系</b>：六大类共 35 个技术买入信号（趋势：MA金叉/站上年线/多头排列/回踩MA20/MACD金叉/红柱/底背离/DMI/TRIX；动量：RSI超卖/金叉/底背离/KDJ金叉/低位金叉/J&lt;0/CCI/ROC/W%R；量价：量增价升/底部放量/缩量回调/量增价平/OBV背离；K线：锤子/倒锤/大阳/吞没/曙光/多方炮/上升三法；形态：双底/平台突破/回踩MA60；辅助：BOLL反弹/BIAS/EMV/BRAR/VR/PSY）。信号按所选日期当日计算，行情为前复权日K（2024-01 起，含指标预热），来源腾讯自选股行情接口。<br>
+    多指标共振原则：无任何单一信号绝对可靠，本工具默认要求 ≥3 信号且覆盖 ≥2 类交叉验证，可自行调整阈值。<b>下跌趋势剔除</b>：默认剔除均线空头排列（MA5&lt;MA10&lt;MA20&lt;MA60）或「收盘&lt;MA60 且 MA60 下弯」的下跌趋势股，可取消勾选查看全部。<b>防追高</b>：默认仅保留当日涨幅&lt;6% 的股票（回测显示当日大涨≥9%的信号股 T+10 中位 -1.96%，显著差于温和上涨），可调上限或取消。<br>
+    <b>免责声明</b>：以上内容基于公开数据和量化分析，仅供参考，不构成投资建议。市场有风险，投资需谨慎。任何投资决策应结合个人风险承受能力、资金状况和投资目标独立判断，必要时咨询持牌专业机构。过往表现不预示未来收益。
+  </footer>
+</div>
+
+<script src="signal_system.js"></script>
+<script src="top5_data.js"></script>
+<script src="signal_data.js"></script>
+<script>
+(function(){
+'use strict';
+var D = window.SIGNAL_DATA;
+if(!D){ document.body.innerHTML='<p style="padding:40px">数据文件未加载</p>'; return; }
+var SS = window.SIG_SYSTEM;
+var dates = D.dates, sigData = D.sig, meta = D.meta, summary = D.sum;
+var trendData = D.trend || {};             // date -> {sym: 1=下跌趋势 0=非下跌}
+var pctData = D.pct || {};                 // date -> {sym: 当日涨幅%}
+var codes = D.codes;                       // 信号码列表(下标=索引)
+var catMeta = SS.catMeta, sigNames = SS.signalNames;
+
+var dateIdx = dates.length - 1;
+var page = 1, pageSize = 50;
+var searchKw = '', sortBy = 'sigDesc';
+var minSig = 3, minCat = 2, onlyYear = false, excludeDown = true, maxPct = 6;
+var activeCats = ['趋势','动量','量价','K线形态','图表形态','辅助'];  // 默认全开
+
+var $ = function(id){ return document.getElementById(id); };
+var tbody=$('tbody'), emptyBox=$('emptyBox');
+
+function catOfCode(code){  // 信号码 -> 类别中文
+  if(code.indexOf('t_')===0) return '趋势';
+  if(code.indexOf('m_')===0) return '动量';
+  if(code.indexOf('v_')===0) return '量价';
+  if(code.indexOf('k_')===0) return 'K线形态';
+  if(code.indexOf('p_')===0) return '图表形态';
+  if(code.indexOf('a_')===0) return '辅助';
+  return '其他';
+}
+function catColor(cat){ return (catMeta[cat]||{}).color || '#999'; }
+
+// 日期初始化
+$('datePicker').min = dates[0]; $('datePicker').max = dates[dates.length-1];
+$('datePicker').value = dates[dateIdx];
+$('stkCnt').textContent = Object.keys(meta).length;
+$('genInfo').textContent = '数据生成于 ' + (D.gen||'') + ' · 共 ' + dates.length + ' 个交易日';
+
+function curDate(){ return dates[dateIdx]; }
+
+// 类别开关渲染
+function renderCatToggles(){
+  var box = $('catToggle'); box.innerHTML = '';
+  Object.keys(catMeta).forEach(function(cat){
+    var chip = document.createElement('label');
+    chip.className = 'cat-chip' + (activeCats.indexOf(cat)>=0 ? ' on' : '');
+    chip.style.borderColor = catColor(cat);
+    chip.style.color = activeCats.indexOf(cat)>=0 ? '#fff' : catColor(cat);
+    chip.style.background = activeCats.indexOf(cat)>=0 ? catColor(cat) : '#f8f9fc';
+    var cb = document.createElement('input');
+    cb.type = 'checkbox'; cb.checked = activeCats.indexOf(cat)>=0;
+    cb.addEventListener('change', function(){
+      if(cb.checked && activeCats.indexOf(cat)<0) activeCats.push(cat);
+      if(!cb.checked && activeCats.indexOf(cat)>=0) activeCats = activeCats.filter(function(x){return x!==cat;});
+      renderCatToggles(); page = 1; renderCards(); buildList();
+    });
+    chip.appendChild(cb);
+    chip.appendChild(document.createTextNode(cat + ' (' + Object.keys(sigNames).filter(function(c){return catOfCode(c)===cat;}).length + ')'));
+    box.appendChild(chip);
+  });
+}
+
+// 解析信号
+function parseSignals(str){
+  if(!str) return [];
+  return str.split(',').map(function(x){ return codes[parseInt(x,10)]; }).filter(Boolean);
+}
+function getRecord(date, sym){
+  var s = sigData[date] ? sigData[date][sym] : undefined;
+  return s ? parseSignals(s) : null;
+}
+
+// 过滤
+function passFilter(date, sym){
+  var sigs = getRecord(date, sym);
+  if(!sigs) return false;
+  if(sigs.length < minSig) return false;
+  // 剔除下跌趋势
+  if(excludeDown){
+    var tdMap = trendData[date]||{};
+    if(tdMap[sym] === 1) return false;
+  }
+  // 防追高: 当日涨幅上限
+  if(maxPct < 99){
+    var p = (pctData[date]||{})[sym];
+    if(p != null && p >= maxPct) return false;
+  }
+  var cats = {};
+  sigs.forEach(function(c){ cats[catOfCode(c)] = 1; });
+  var nCat = Object.keys(cats).length;
+  if(nCat < minCat) return false;
+  // 类别筛选
+  for(var c in cats){
+    if(activeCats.indexOf(c) < 0) return false;
+  }
+  if(onlyYear){
+    var m = meta[sym]||[];   // meta: [name, close, pct] 无均线信息, 从信号判断
+    if(sigs.indexOf('t_above_year') < 0) return false;
+  }
+  return true;
+}
+
+// 渲染统计卡
+function renderTop5(){
+  var card = document.getElementById('top5Card');
+  if(!window.TOP5_DATA){ card.style.display='none'; return; }
+  var d = curDate();
+  var list = window.TOP5_DATA[d];
+  if(!list || !list.length){ card.style.display='none'; return; }
+  // 按防追高上限动态过滤(候选预存10只)
+  var filtered = list;
+  if(maxPct < 99){
+    filtered = list.filter(function(it){ return it.pct == null || it.pct < maxPct; });
+  }
+  filtered = filtered.slice(0, 5);
+  if(!filtered.length){ card.style.display='none'; return; }
+  card.style.display='block';
+  document.getElementById('top5Date').textContent = '· ' + d + (maxPct<99 ? ' · 当日涨幅<'+maxPct+'%' : '') + ' ·';
+  var box = document.getElementById('top5List');
+  var html = '';
+  var rankCls = ['rk1','rk2','rk3','',''];
+  filtered.forEach(function(it, i){
+    var pctHtml = it.pct==null ? '<span class="flat">--</span>' : (it.pct>0?'<span class="up">+'+it.pct.toFixed(2)+'%</span>':'<span class="down">'+it.pct.toFixed(2)+'%</span>');
+    var tags = '';
+    var bd = it.bd||{};
+    var bdMeta = [
+      ['信号', bd['信号']], ['类别', bd['类别']], ['趋势', bd['趋势']],
+      ['动量', bd['动量']], ['量价', bd['量价']], ['当日', bd['当日']]
+    ];
+    bdMeta.forEach(function(pair){
+      if(pair[1] > 0){
+        tags += '<span class="tag" style="background:'+(pair[0]==='信号'?'#1c7ed6':pair[0]==='类别'?'#7950f2':pair[0]==='趋势'?'#0ca678':pair[0]==='动量'?'#e8590c':pair[0]==='量价'?'#f08c00':'#adb5bd')+'">'+pair[0]+' '+pair[1]+'</span>';
+      }
+    });
+    html += '<div class="top5-item" title="'+it.sigs.join('、')+'">'
+      + '<div class="rank '+(rankCls[i]||'')+'">'+(i+1)+'</div>'
+      + '<div class="nm">'+it.name+'</div>'
+      + '<div class="sc">'+it.score+'<span style="font-size:12px;color:var(--sub);font-weight:400">分</span></div>'
+      + '<div class="meta">'+it.sym.replace(/^(sh|sz|bj)/,'')+' · 收'+(it.close==null?'--':Number(it.close).toFixed(2))+' · '+pctHtml+'</div>'
+      + '<div class="meta">信号 '+it.sig_n+' 个 · '+it.cat_n+' 类</div>'
+      + '<div class="tags">'+tags+'</div>'
+      + '</div>';
+  });
+  box.innerHTML = html;
+}
+function renderCards(){
+  var d = curDate();
+  var day = sigData[d]||{};
+  var nAll = Object.keys(day).length;
+  var nRes = 0, nAll6 = 0, topSig = 0;
+  Object.keys(day).forEach(function(sym){
+    var sigs = parseSignals(day[sym]);
+    if(sigs.length > topSig) topSig = sigs.length;
+    var cats = {};
+    sigs.forEach(function(c){ cats[catOfCode(c)] = 1; });
+    if(Object.keys(cats).length >= 6) nAll6++;
+    if(passFilter(d, sym)) nRes++;
+  });
+  $('cAll').textContent = nAll;
+  $('cReson').textContent = nRes;
+  $('cTop').textContent = topSig;
+  $('cAll6').textContent = nAll6;
+  $('dayInfo').textContent = '第 ' + (dateIdx+1) + ' / ' + dates.length + ' 个交易日';
+  renderTop5();
+}
+
+// 列表
+function buildList(){
+  var d = curDate();
+  var day = sigData[d]||{};
+  var arr = Object.keys(day).filter(function(sym){ return passFilter(d, sym); });
+  if(searchKw){
+    var kw = searchKw.toLowerCase();
+    arr = arr.filter(function(s){
+      var m = meta[s]||[];
+      return s.toLowerCase().indexOf(kw)>=0 || (m[0]||'').toLowerCase().indexOf(kw)>=0;
+    });
+  }
+  var rows = arr.map(function(sym){
+    var sigs = parseSignals(day[sym]);
+    var cats = {};
+    sigs.forEach(function(c){ cats[catOfCode(c)] = 1; });
+    var m = meta[sym]||['','--','--'];
+    var isDown = ((trendData[d]||{})[sym] === 1);
+    return { sym:sym, name:m[0], close:m[1], pct:m[2], sigs:sigs, nCat:Object.keys(cats).length, down:isDown };
+  });
+  if(sortBy==='sigDesc') rows.sort(function(a,b){ return b.sigs.length-a.sigs.length || b.nCat-a.nCat; });
+  else if(sortBy==='catDesc') rows.sort(function(a,b){ return b.nCat-a.nCat || b.sigs.length-a.sigs.length; });
+  else rows.sort(function(a,b){ return a.sym<b.sym?-1:1; });
+
+  var total = rows.length, pages = Math.max(1, Math.ceil(total/pageSize));
+  if(page>pages) page = pages;
+  var start=(page-1)*pageSize, slice = rows.slice(start, start+pageSize);
+
+  var html = '';
+  slice.forEach(function(it, i){
+    var catGroup = {};
+    it.sigs.forEach(function(c){
+      var cat = catOfCode(c);
+      (catGroup[cat] = catGroup[cat]||[]).push(c);
+    });
+    var badgeHtml = '';
+    Object.keys(catGroup).forEach(function(cat){
+      var col = catColor(cat);
+      catGroup[cat].forEach(function(code){
+        badgeHtml += '<span class="sig-badge" style="background:'+col+'" title="'+cat+'">'+ (sigNames[code]||code) +'</span>';
+      });
+    });
+    html += '<tr><td>'+(start+i+1)+'</td>'
+      + '<td class="code"><a class="sym-link" target="_blank" href="https://gu.qq.com/'+it.sym+'">'+it.sym.replace(/^(sh|sz|bj)/,'')+'</a></td>'
+      + '<td>'+it.name+'</td>'
+      + '<td>'+(it.close==='--'?'--':Number(it.close).toFixed(2))+'</td>'
+      + '<td>'+(function(){ if(it.pct==='--'||isNaN(it.pct)) return '<span class="flat">--</span>';
+          var cls = it.pct>0?'up':(it.pct<0?'down':'flat'); return '<span class="'+cls+'">'+(it.pct>0?'+':'')+it.pct.toFixed(2)+'%</span>'; })()+'</td>'
+      + '<td>'+(it.down ? '<span style="color:#e03131;font-weight:600">下跌</span>' : '<span style="color:#0ca678;font-weight:600">上行</span>')+'</td>'
+      + '<td><b>'+it.sigs.length+'</b></td>'
+      + '<td><span class="cat-num">'+it.nCat+'</span></td>'
+      + '<td style="max-width:520px">'+badgeHtml+'</td>'
+      + '</tr>';
+  });
+  tbody.innerHTML = html;
+  emptyBox.style.display = total===0 ? 'block' : 'none';
+  $('pgInfo').textContent = page + '/' + pages;
+  $('pgPrev').disabled = page<=1;
+  $('pgNext').disabled = page>=pages;
+}
+
+// 图表
+var chart = null;
+function renderChart(){
+  if(!window.echarts) return;
+  var xData = dates.slice();
+  var s3 = [], s2c = [], s5 = [];
+  dates.forEach(function(d){
+    var s = summary[d]||[0,0,0];
+    s3.push(s[0]); s2c.push(s[1]); s5.push(s[2]);
+  });
+  if(chart) chart.dispose();
+  chart = echarts.init(document.getElementById('trend'));
+  chart.setOption({
+    tooltip: { trigger:'axis' },
+    legend: { data:['≥3信号','≥2类','≥5信号'], top:0 },
+    grid: { left:44, right:16, top:36, bottom:24 },
+    xAxis: { type:'category', data:xData, axisLabel:{ fontSize:10, interval:19 } },
+    yAxis: { type:'value', minInterval:100 },
+    series: [
+      { name:'≥3信号', type:'line', data:s3, smooth:true, symbolSize:4, itemStyle:{color:'#1c7ed6'}, lineStyle:{width:1.8} },
+      { name:'≥2类', type:'line', data:s2c, smooth:true, symbolSize:4, itemStyle:{color:'#7950f2'}, lineStyle:{width:1.4} },
+      { name:'≥5信号', type:'line', data:s5, smooth:true, symbolSize:4, itemStyle:{color:'#f08c00'}, lineStyle:{width:1.4} }
+    ]
+  });
+  chart.on('click', function(p){ if(p && p.dataIndex!=null) selectDate(dates[p.dataIndex]); });
+}
+
+function selectDate(dstr){
+  var i = dates.indexOf(dstr);
+  if(i<0) return;
+  dateIdx = i; $('datePicker').value = dstr; page = 1;
+  renderCards(); renderChart(); buildList();
+}
+$('datePicker').addEventListener('change', function(){ selectDate($('datePicker').value); });
+$('btnPrev').onclick = function(){ if(dateIdx>0){ dateIdx--; selectDate(dates[dateIdx]); } };
+$('btnNext').onclick = function(){ if(dateIdx<dates.length-1){ dateIdx++; selectDate(dates[dateIdx]); } };
+$('btnLatest').onclick = function(){ selectDate(dates[dates.length-1]); };
+$('minSig').addEventListener('change', function(){ minSig=parseInt(this.value,10); page=1; renderCards(); buildList(); });
+$('minCat').addEventListener('change', function(){ minCat=parseInt(this.value,10); page=1; renderCards(); buildList(); });
+$('onlyYear').addEventListener('change', function(){ onlyYear=this.checked; page=1; renderCards(); buildList(); });
+$('excludeDown').addEventListener('change', function(){ excludeDown=this.checked; page=1; renderCards(); buildList(); });
+$('maxPct').addEventListener('change', function(){ maxPct=parseInt(this.value,10); page=1; renderCards(); buildList(); });
+$('searchBox').addEventListener('input', function(){ searchKw=this.value.trim(); page=1; buildList(); });
+$('sortSel').addEventListener('change', function(){ sortBy=this.value; page=1; buildList(); });
+$('pgPrev').onclick = function(){ if(page>1){ page--; buildList(); } };
+$('pgNext').onclick = function(){ if(page<Math.ceil(buildTotal()/pageSize)){ page++; buildList(); } };
+function buildTotal(){
+  var d = curDate();
+  var day = sigData[d]||{};
+  var arr = Object.keys(day).filter(function(sym){ return passFilter(d, sym); });
+  if(searchKw){
+    var kw = searchKw.toLowerCase();
+    arr = arr.filter(function(s){
+      var m = meta[s]||[];
+      return s.toLowerCase().indexOf(kw)>=0 || (m[0]||'').toLowerCase().indexOf(kw)>=0;
+    });
+  }
+  return arr.length;
+}
+
+renderCatToggles();
+renderCards(); renderChart(); buildList();
+})();
+</script>
+</body>
+</html>

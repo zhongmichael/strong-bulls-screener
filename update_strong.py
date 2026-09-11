@@ -21,7 +21,8 @@ OUT_DIR = os.path.join(BASE, "data", "out")
 DIST_DIR = os.path.join(BASE, "dist_strong")
 
 def fetch_kline(symbol, start, end):
-    url = (f"https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?"
+    # 镜像接口 (web.ifzq.gtimg.cn 会被WAF拦截返回501, 必须走 proxy.finance.qq.com)
+    url = (f"https://proxy.finance.qq.com/ifzqgtimg/appstock/app/fqkline/get?"
            f"param={symbol},day,{start},{end},900,qfq")
     req = urllib.request.Request(url, headers={
         "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
@@ -65,7 +66,7 @@ def step1_fetch():
     return symbols
 
 def step2_compute():
-    """重算强势/回踩数据"""
+    """重算强势/回踩数据 + 刷新meta最新价"""
     print("[2/4] 重算强势股数据...")
     import subprocess
     r = subprocess.run([sys.executable, os.path.join(BASE, "compute_strong.py")],
@@ -74,6 +75,37 @@ def step2_compute():
     if r.returncode != 0:
         print("ERROR:", r.stderr[-800:])
         sys.exit(1)
+    # 刷新 meta.json 的 last_close/last_pct/last_date (从最新K线)
+    print("  刷新meta最新价...")
+    script = '''
+import json, glob, os
+kline_files = glob.glob('data/kline/*.json')
+meta = json.load(open('data/out/meta.json', encoding='utf-8'))
+fixed = 0
+for fp in kline_files:
+    sym = os.path.basename(fp)[:-5]
+    if sym not in meta: continue
+    try:
+        d = json.load(open(fp, encoding='utf-8'))
+        bars = d['bars']
+        if not bars: continue
+        last = bars[-1]
+        close = float(last[2])
+        prev_close = float(bars[-2][2]) if len(bars) >= 2 else close
+        meta[sym]['last_close'] = round(close, 2)
+        meta[sym]['last_pct'] = round((close/prev_close-1)*100, 2)
+        meta[sym]['last_date'] = last[0]
+        fixed += 1
+    except Exception:
+        pass
+json.dump(meta, open('data/out/meta.json', 'w', encoding='utf-8'), ensure_ascii=False)
+print('  meta刷新:', fixed, '只')
+'''
+    r2 = subprocess.run([sys.executable, "-c", script], cwd=BASE,
+                        capture_output=True, text=True)
+    print(r2.stdout[-200:])
+    if r2.returncode != 0:
+        print("WARN meta refresh failed:", r2.stderr[-300:])
 
 def step3_pack():
     """生成 strong_data.js"""
@@ -83,7 +115,7 @@ def step3_pack():
 import json, os
 strong = json.load(open('data/out/strong_2026.json'))
 meta = json.load(open('data/out/meta.json'))
-td = json.load(open('data/out/trade_dates.json'))
+td = sorted(strong.keys())   # 交易日动态从strong提取(避免旧文件不同步)
 try:
     blocks = json.load(open('data/out/stock_blocks.json'))
 except Exception:
@@ -131,7 +163,8 @@ def step4_sync():
     """同步到 dist 目录"""
     print("[4/4] 同步到部署目录...")
     os.makedirs(DIST_DIR, exist_ok=True)
-    for f in ["strong_screener.html", "strong_data.js", "echarts.min.js"]:
+    for f in ["strong_screener.html", "strong_data.js", "echarts.min.js",
+              "buydian_v21.html", "buydian_v21_data.js"]:
         src = os.path.join(BASE, f)
         if os.path.exists(src):
             shutil.copy(src, os.path.join(DIST_DIR, f))

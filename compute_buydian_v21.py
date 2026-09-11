@@ -5,12 +5,16 @@
 门禁: 当前项目规则D强势池 (周线近10周≥7站上周MA5 且 (月线≥6 或 强度≥50)), 每日动态更新
 算法: V2.1 (买点区域选股器V2.1-实时版 gen_v2_live.py computeCode 移植)
 
-V2.1 分级:
-  S级: 回踩MA60 + Trigger + 周线共振 + 缩量  -> 核心买点
-  A级: 回踩MA60 + Trigger                     -> 试仓
-  B级: 回踩MA60 但 Trigger 未确认             -> 观察
+V2.2 分级 (S级收紧: 红9/金针必须带确认, 新增反转确认信号turn):
+  S级: 回踩MA60 + Trigger + 周线共振 + 缩量
+    或 红9 + 止跌K线 + 缩量 (计数到位且有确认)
+    或 金针 + 缩量/Trigger确认
+  A级: 回踩MA60 + Trigger; 红9带部分确认; 裸金针; 回踩未确认但已反转+缩量
+  B级: 回踩MA60 但 Trigger 未确认; 裸红9(仅计数, 等确认)
   C级: 低9 / RSI<30 (非核心, 仅记录)
   排除: 实体大阴线跌超5%
+反转确认 turn: 阳包阴(今日阳线实体完全包住昨日阴线) 或 放量阳线收复MA10
+  —— 回踩到位后"由跌转涨"的证据, 是比单纯计数/K线形态更可靠的入场观察点
 """
 import json
 import glob
@@ -72,14 +76,34 @@ def rsi14(c):
     return out
 
 def nine_cnt(c):
+    """九转计数: 正数=绿9(买入setup), 负数=红9(卖出setup), 与td9.td_sequence一致"""
     n = len(c)
     cnt = np.zeros(n, dtype=int)
     for i in range(4, n):
         if c[i] < c[i-4]:
             cnt[i] = cnt[i-1] + 1 if cnt[i-1] > 0 else 1
+        elif c[i] > c[i-4]:
+            cnt[i] = cnt[i-1] - 1 if cnt[i-1] < 0 else -1
         else:
             cnt[i] = 0
     return cnt
+
+def is_red9(cnt_i):
+    """神奇九转红9 = 低9(买入setup): 连续9根收盘<4天前收盘, 计数==+9
+    红色=做多/买点(用户语义), 强势股深度回调到位的低9是核心买点"""
+    return cnt_i >= 9
+
+def is_golden_needle(o, c, h, l):
+    """明显金针探底红K: 长下影 + 红K(收阳)
+    判定: 下影线 >= 2×实体 且 下影线 >= 0.5×振幅, 且收阳(c>o), 且下影线占振幅比例>=45%"""
+    body = abs(c - o)
+    lower = min(o, c) - l
+    rng = (h - l) or 0.01
+    if c <= o:
+        return False
+    if lower >= 2 * body and lower >= 0.5 * rng and lower / rng >= 0.45:
+        return True
+    return False
 
 def is_stab(o, c, h, l):
     body = abs(c - o)
@@ -215,7 +239,9 @@ def compute_code(sym, name, day_rows, week_rows, month_rows):
             'MA5': abs(cv - a5) / atrV, 'MA10': abs(cv - a10) / atrV,
             'MA20': abs(cv - a20) / atrV, 'MA30': abs(cv - a30) / atrV,
             'MA60': abs(cv - a60) / atrV, 'MA120': abs(cv - a120) / atrV}
-        ma60_pullback = dists['MA60'] <= 1.0
+        # 回踩MA60: ATR距离<=1.0 且 收盘未深破MA60(容忍-2%) —— "回踩"意为贴近未破,
+        # 深破MA60的票靠反转确认另行观察, 不再算回踩买点
+        ma60_pullback = dists['MA60'] <= 1.0 and cv >= a60 * 0.98
         primary = 'MA60' if ma60_pullback else None
 
         shrink = vma5[i] < vma20[i] * 0.8
@@ -249,12 +275,44 @@ def compute_code(sym, name, day_rows, week_rows, month_rows):
         if breakout: bs += 10
 
         level = None
+        sig_red9 = is_red9(nine[i])          # 神奇九转红9 = 低9(买入setup==+9), 强势股回调到位买点
+        sig_needle = is_golden_needle(o[i], cv, h[i], l[i])  # 明显金针探底红K
+
+        # ---- 反转确认 (turn): 回踩到位后"由跌转涨"的证据, 比单纯计数/K线形态可靠 ----
+        # 1) 阳包阴: 今日阳线实体完全包住昨日阴线实体(回踩后首根反包 = 多头夺回主动)
+        engulf = False
+        if i >= 1 and c[i] > o[i] and c[i-1] < o[i-1]:
+            engulf = (c[i] >= max(o[i-1], c[i-1])) and (o[i] <= min(o[i-1], c[i-1]))
+        # 2) 放量收复: 昨阴今阳且收盘重新站上MA10, 量能不低于5日均量(主动回补, 非缩量反抽)
+        reclaim = False
+        if i >= 1 and c[i] > o[i] and c[i-1] < o[i-1] and c[i] > a10 and c[i-1] <= a10 \
+                and vma5[i] > 0 and v[i] >= vma5[i]:
+            reclaim = True
+        turn = bool(engulf or reclaim)
+        if turn: bs += 10   # 反转确认(阳包阴/放量收复MA10): 低吸介入的直接证据
+
+        # ---- S级收紧: 红9/金针只是"计数到位/单日形态", 必须带确认才是核心买点 ----
+        # 神奇九转正确用法: 低9出现后等反转确认再进, 裸低9在阴跌途中经常继续跌(低9后还有低10)
+        red9_stabilized = sig_red9 and (stable or cv > o[i]) and shrink   # 红9+止跌K+缩量
+        red9_partial = sig_red9 and (turn or stable or cv > o[i] or shrink)
+        needle_confirmed = sig_needle and (shrink or trig_cnt >= 2)       # 金针+缩量/触发确认
+
         if ma60_pullback and trigger_ok:
             level = 'S' if (resonate and shrink) else 'A'
         elif ma60_pullback and not trigger_ok:
-            level = 'B'
-        elif low9 or (rsi[i] is not None and not np.isnan(rsi[i]) and rsi[i] < 30):
-            level = 'C'
+            level = 'A' if (turn and shrink) else 'B'   # 回踩未确认: 有反转确认+缩量可提前试仓
+        elif red9_stabilized:
+            level = 'S'   # 红9 + 止跌K线 + 缩量: 到位且确认
+        elif red9_partial:
+            level = 'A'   # 红9 + 部分确认: 试仓
+        elif sig_red9:
+            level = 'B'   # 裸红9: 仅计数到位, 无任何确认 -> 观察(等反转/缩量)
+        elif needle_confirmed:
+            level = 'S'   # 金针 + 缩量/触发确认
+        elif sig_needle:
+            level = 'A'   # 裸金针: 单日形态无确认 -> 试仓
+        elif rsi[i] is not None and not np.isnan(rsi[i]) and rsi[i] < 30:
+            level = 'C'   # 仅RSI超卖(无低9/金针/回踩) -> 非核心
         chg = (cv / c[i-1] - 1) * 100 if i >= 1 else 0
         big_bear = (chg <= -5) and (cv < o[i])
         if big_bear:
@@ -266,7 +324,9 @@ def compute_code(sym, name, day_rows, week_rows, month_rows):
             'pullback_dist': round(float(dists['MA60']), 2) if primary else None,
             'shrink': bool(shrink), 'ma_up': bool(ma_up), 'stable': bool(stable),
             'breakout': bool(breakout), 'trigger_ok': bool(trigger_ok), 'trig_cnt': int(trig_cnt),
-            'low9': bool(low9), 'low8': bool(low8), 'week_hit': week_hit,
+            'low9': bool(low9), 'low8': bool(low8), 'red9': bool(sig_red9),
+            'golden_needle': bool(sig_needle), 'week_hit': week_hit,
+            'engulf': bool(engulf), 'reclaim': bool(reclaim), 'turn': turn,
             'resonate': bool(resonate), 'buy_score': int(bs), 'level': level,
             'stop': round(float(stop), 2), 'resistance': round(float(resistance), 2),
             'rr': round(float(rr), 2) if rr is not None else None,
