@@ -1,0 +1,39 @@
+name: 仓库体积守卫
+
+# 目的：防止协作者误把数据文件提交进仓库。
+# 本项目数据文件合计 1GB+（单文件最大 65MB），一旦推上来很难清理，
+# 且 GitHub 单文件上限 100MB、仓库超过 1GB 会被限制。
+# 规则详见 CONTRIBUTING.md 与 .gitignore。
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 检查是否误提交大文件（>10MB）
+        run: |
+          echo "扫描超过 10MB 的文件..."
+          find . -path ./.git -prune -o -type f -size +10M -print > /tmp/large.txt
+          if [ -s /tmp/large.txt ]; then
+            echo "::error::发现超过 10MB 的文件，数据文件不应入库（见 CONTRIBUTING.md）"
+            cat /tmp/large.txt
+            exit 1
+          fi
+          echo "体积检查通过"
+
+      - name: 检查是否误纳入数据包
+        run: |
+          PATTERN='^(data/|.*\.js\.gz$)|^dist_strong/(strong_data|kline_ref|year_kline|gain_board|buydian_v21_data)\.js$|^(strong_data|kline_ref|year_kline|gain_board|buydian_v21_data|signal_data|top5_data)\.js$'
+          BAD=$(git ls-files | grep -E "$PATTERN" || true)
+          if [ -n "$BAD" ]; then
+            echo "::error::检测到数据文件被纳入版本控制，请从索引中移除："
+            echo "$BAD"
+            echo "修复：git rm --cached <文件> 并确认 .gitignore 已覆盖"
+            exit 1
+          fi
+          echo "数据文件检查通过"
