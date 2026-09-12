@@ -1517,6 +1517,7 @@ function sectorTop10(targetDate, topN){
     var avg = sum[q] / m, ztr = ztN[q] / m * 100;
     // 强势度: 涨停家数开0.6次方(抑制宽题材靠数量霸榜) + 涨停率 + 当日均涨
     rows.push({name:NM[q], n:m, zt:ztN[q], zt5:zt5N[q], avg:avg, ztr:ztr,
+      code:(window.SECTOR_CODES||[])[q] || '',
       score:Math.pow(ztN[q], 0.6)*10 + ztr*2 + avg,
       lead:bestName[q], leadChg:bestChg[q]});
   }
@@ -1527,11 +1528,14 @@ function sectorTop10Html(targetDate){
   var list = sectorTop10(targetDate, 10);
   if(!list || !list.length) return '';
   var cc = function(v){ return v >= 0 ? '#e03131' : '#0ca678'; };
+  var CARDBOX = 'border:1px solid #e9ecef;border-radius:6px;padding:7px 9px;background:#fff;min-width:0';
   var cards = list.map(function(r, i){
-    return '<div style="border:1px solid #e9ecef;border-radius:6px;padding:7px 9px;background:#fff;min-width:0">'
-      + '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:6px">'
+    // 有东财板块代码 -> 整卡可点, 新标签页跳转该板块指数页
+    var href = r.code ? ('https://quote.eastmoney.com/bk/90.' + r.code + '.html') : '';
+    var inner = '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:6px">'
       +   '<span style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+r.name+'">'
-      +     '<span style="color:'+(i<3?'#e03131':'#868e96')+';font-weight:700">'+(i+1)+'</span> '+r.name+'</span>'
+      +     '<span style="color:'+(i<3?'#e03131':'#868e96')+';font-weight:700">'+(i+1)+'</span> '+r.name
+      +     (href ? ' <span style="color:#adb5bd;font-size:10px">↗</span>' : '') + '</span>'
       +   '<span style="font-size:11px;color:#adb5bd;flex:0 0 auto">'+r.n+'只</span>'
       + '</div>'
       + '<div style="font-size:16px;font-weight:700;color:#e03131;line-height:1.35;margin-top:1px">'+r.zt
@@ -1540,13 +1544,21 @@ function sectorTop10Html(targetDate){
       + '<div style="font-size:11px;color:#868e96;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">均涨 '
       +   '<span style="color:'+cc(r.avg)+'">'+(r.avg>0?'+':'')+r.avg.toFixed(2)+'%</span> · 5日涨停 '+r.zt5+'</div>'
       + '<div style="font-size:11px;color:#868e96;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">领涨 '
-      +   r.lead+' <span style="color:'+cc(r.leadChg)+'">'+(r.leadChg>0?'+':'')+r.leadChg.toFixed(1)+'%</span></div>'
-      + '</div>';
+      +   r.lead+' <span style="color:'+cc(r.leadChg)+'">'+(r.leadChg>0?'+':'')+r.leadChg.toFixed(1)+'%</span></div>';
+    if(!href) return '<div style="'+CARDBOX+'">' + inner + '</div>';
+    return '<a href="'+href+'" target="_blank" rel="noopener noreferrer"'
+      + ' title="'+r.name+'（'+r.code+'）· 点击查看东方财富板块指数"'
+      + ' style="display:block;'+CARDBOX+';text-decoration:none;color:inherit;cursor:pointer;'
+      +   'transition:border-color .12s,box-shadow .12s,transform .12s"'
+      + ' onmouseover="this.style.borderColor=\'#ffa8a8\';this.style.boxShadow=\'0 2px 8px rgba(224,49,49,.14)\';this.style.transform=\'translateY(-1px)\'"'
+      + ' onmouseout="this.style.borderColor=\'#e9ecef\';this.style.boxShadow=\'none\';this.style.transform=\'none\'">'
+      + inner + '</a>';
   }).join('');
   return '<div style="background:#fff;border:1px solid var(--line);border-radius:8px;padding:12px;margin-bottom:12px">'
     + '<div style="font-size:13px;font-weight:600;margin-bottom:8px">🧩 活跃概念题材 · 强势板块 TOP10'
     + '<span style="color:#adb5bd;font-size:11px;font-weight:400"> · 强势度 = 涨停家数^0.6×10 + 涨停率×2 + 当日均涨 · '
-    + '仅统计概念题材(已剔除地域/指数风格/财报类标签), 并排除成分股超 800 只的属性类宽标签 · 涨停判定与下方梯队同源</span></div>'
+    + '仅统计概念题材(已剔除地域/指数风格/财报类标签), 并排除成分股超 800 只的属性类宽标签 · 涨停判定与下方梯队同源 · '
+    + '<span style="color:#e8590c">点击卡片 ↗ 跳转东方财富板块指数</span></span></div>'
     + '<div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px">'
     + cards
     + '</div></div>';
