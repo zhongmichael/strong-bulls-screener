@@ -20,7 +20,7 @@
 
 | Tab | 模块 | 页面主容器 | 依赖数据包 | 后端算法 / 生成脚本 |
 |---|---|---|---|---|
-| ⚡ **涨停梯队**（默认） | 连板梯队 + 市场情绪温度计 + 活跃概念题材强势板块 TOP10 | `#ztCard` | `kline_ref.js`<br>`year_kline.js`<br>`sector_ref.js` | `gen_gain_board.py`（year_kline）<br>`gen_sector_ref.py`（概念映射）<br>+ 页面内 `ztCompute` / `ztSentiment` / `sectorTop10` |
+| ⚡ **涨停梯队**（默认） | 连板梯队 + 市场情绪温度计 + 活跃概念题材强势板块 TOP10（卡片可点击跳转东财板块指数） | `#ztCard` | `kline_ref.js`<br>`year_kline.js`<br>`sector_ref.js` | `gen_gain_board.py`（year_kline）<br>`gen_sector_ref.py`（概念映射 + 板块代码）<br>+ 页面内 `ztCompute` / `ztSentiment` / `sectorTop10` |
 | 🚀 **涨幅榜** | 多周期涨幅排行 + 趋势分类 + 入场信号 | `#gainCard` | `gain_board.js`<br>`year_kline.js`<br>`kline_ref.js` | `gen_gain_board.py`<br>+ 页面内趋势 / 信号计算 |
 | 📋 **选股器** | 强势股池 + 回踩评分 + V2.1 买点 | `#filters` `#cards` `#blkCard`<br>`.list-card` `#bd21Card` `.pull-cards` | `strong_data.js`<br>`kline_ref.js`<br>`buydian_v21_data.js` | `compute_strong.py`<br>`compute_buydian_v21.py`<br>`gen_buydian_v21_page.py` |
 
@@ -105,8 +105,14 @@
 | [9] 同步 dist_strong + gzip + 发布自检 | `dist_strong/*.js.gz` | 线上服务 |
 
 > `sector_ref.js`（概念题材映射，供涨停梯队的「强势板块 TOP10」用）**不在这 9 步里**——板块归属变化很慢，
-> 离线跑一次 `python3 gen_sector_ref.py` 即可；它只依赖 `data/out/stock_blocks.json`。
-> 日常更新若要刷新它，重跑该脚本后 `python3 rebuild_gz.py --targets . dist_strong` 重新压缩。
+> 离线跑一次即可，依赖两个文件：
+> ```bash
+> python3 fetch_block_codes.py   # data/out/block_codes.json ← 概念名 → 东财板块代码(BKxxxx)
+> python3 gen_sector_ref.py      # sector_ref.js ← stock_blocks.json + block_codes.json
+> ```
+> `block_codes.json` 只用于卡片点击跳转（`quote.eastmoney.com/bk/90.<BK>.html`）；
+> **缺它也不报错**，`SECTOR_CODES` 会降级为空串、卡片自动变回不可点击。
+> 日常更新若要刷新它，重跑上面两个脚本后 `python3 rebuild_gz.py --targets . dist_strong` 重新压缩。
 
 > ⚠️ 三个模块各读不同数据源，**改动数据合并逻辑后必须逐个视图验证**，只验一个视图会漏（2026-09-03 教训）。详见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
@@ -155,6 +161,7 @@ python3 fetch_blocks.py          # 板块信息（行业+概念）
 python3 compute_strong.py        # 强势/回踩/强度计算
 python3 compute_buydian_v21.py   # V2.1 买点分级
 python3 gen_gain_board.py        # 涨幅榜 + year_kline
+python3 fetch_block_codes.py      # 概念名 → 东财板块代码（卡片跳转用，离线跑一次）
 python3 gen_sector_ref.py        # 概念题材映射（涨停梯队「强势板块 TOP10」）
 python3 rebuild_gz.py            # 压缩 .gz 数据包
 ```
