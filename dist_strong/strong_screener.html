@@ -1447,6 +1447,110 @@ function ztCompute(targetDate){
   out.l3.sort(byB); out.l2.sort(byB); out.l1.sort(function(a,b){ return b.strength-a.strength; });
   return out;
 }
+// ===== 活跃概念题材 · 强势板块 TOP10 =====
+// 概念映射来自 sector_ref.js (由 gen_sector_ref.py 从 stock_blocks.json 抽取, 已剔除地域/指数风格/财报类标签)
+// 全部指标用本页同一份 K线 + 同一套涨停判定口径自己算, 不引外部板块指数
+var secRefState = 0;   // 0=未加载 1=加载中 2=已就绪
+function sectorLoadRef(cb){
+  if(window.SECTOR_MAP){ secRefState = 2; cb(); return; }
+  if(secRefState === 2){ cb(); return; }
+  if(secRefState === 1){ setTimeout(function(){ sectorLoadRef(cb); }, 100); return; }
+  secRefState = 1;
+  var done = function(){ secRefState = 2; cb(); };
+  var byTag = function(){
+    var s = document.createElement('script');
+    s.src = 'sector_ref.js';
+    s.onload = done;
+    s.onerror = function(){ secRefState = 0; cb(); };
+    document.body.appendChild(s);
+  };
+  fetch('sector_ref.js.gz').then(function(r){
+    if(!r.ok) throw 0;
+    return r.arrayBuffer();
+  }).then(function(buf){
+    if(!window.DecompressionStream) throw 0;
+    var ds = new DecompressionStream('gzip');
+    return new Response(new Blob([buf]).stream().pipeThrough(ds)).arrayBuffer();
+  }).then(function(d){
+    eval(new TextDecoder().decode(d));
+    done();
+  }).catch(byTag);
+}
+var SEC_MIN = 10;     // 成分股下限: 样本太小(如3只)的涨停率噪声极大
+var SEC_MAX = 800;    // 成分股上限: 「央国企改革」1411只 / 「专精特新」1253只 属企业属性标签, 覆盖1/4市场无区分度
+function sectorTop10(targetDate, topN){
+  var M = window.SECTOR_MAP, NM = window.SECTOR_NAMES, KR = window.KLINE_REF;
+  if(!M || !NM || !KR) return null;
+  var meta = (window.STRONG_DATA || {}).meta || {};
+  topN = topN || 10;
+  var n = NM.length;
+  var sum = new Float64Array(n), cnt = new Int32Array(n), ztN = new Int32Array(n),
+      zt5N = new Int32Array(n), bestChg = new Float64Array(n), bestName = new Array(n);
+  for(var sym in M){
+    var kr = KR[sym], bars = kr && kr.d;
+    if(!bars || bars.length < 2) continue;
+    var i = -1;
+    for(var k = bars.length - 1; k >= 1; k--){ if(bars[k][0] <= targetDate){ i = k; break; } }
+    if(i < 1 || bars[i][0] !== targetDate) continue;   // 停牌/无当日K线, 不计入(否则旧涨幅冒充当日)
+    var pc = +bars[i-1][2], c = +bars[i][2];
+    if(!(pc > 0)) continue;
+    var chg = (c/pc - 1) * 100;
+    var name = (meta[sym]||[])[0] || '';
+    var isZt = c >= ztLpUp(pc, ztLimit(sym, name, targetDate)) - 0.005;
+    var z5 = 0;   // 近5个交易日(含目标日)涨停次数
+    for(var t = Math.max(1, i-4); t <= i; t++){
+      var p2 = +bars[t-1][2], c2 = +bars[t][2];
+      if(p2 > 0 && c2 >= ztLpUp(p2, ztLimit(sym, name, bars[t][0])) - 0.005) z5++;
+    }
+    var ids = M[sym];
+    for(var j = 0; j < ids.length; j++){
+      var id = ids[j];
+      sum[id] += chg; cnt[id]++; zt5N[id] += z5;
+      if(isZt) ztN[id]++;
+      if(bestName[id] === undefined || chg > bestChg[id]){ bestName[id] = name; bestChg[id] = chg; }
+    }
+  }
+  var rows = [];
+  for(var q = 0; q < n; q++){
+    var m = cnt[q];
+    if(m < SEC_MIN || m > SEC_MAX || ztN[q] === 0) continue;
+    var avg = sum[q] / m, ztr = ztN[q] / m * 100;
+    // 强势度: 涨停家数开0.6次方(抑制宽题材靠数量霸榜) + 涨停率 + 当日均涨
+    rows.push({name:NM[q], n:m, zt:ztN[q], zt5:zt5N[q], avg:avg, ztr:ztr,
+      score:Math.pow(ztN[q], 0.6)*10 + ztr*2 + avg,
+      lead:bestName[q], leadChg:bestChg[q]});
+  }
+  rows.sort(function(a,b){ return b.score - a.score; });
+  return rows.slice(0, topN);
+}
+function sectorTop10Html(targetDate){
+  var list = sectorTop10(targetDate, 10);
+  if(!list || !list.length) return '';
+  var cc = function(v){ return v >= 0 ? '#e03131' : '#0ca678'; };
+  var cards = list.map(function(r, i){
+    return '<div style="border:1px solid #e9ecef;border-radius:6px;padding:7px 9px;background:#fff;min-width:0">'
+      + '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:6px">'
+      +   '<span style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+r.name+'">'
+      +     '<span style="color:'+(i<3?'#e03131':'#868e96')+';font-weight:700">'+(i+1)+'</span> '+r.name+'</span>'
+      +   '<span style="font-size:11px;color:#adb5bd;flex:0 0 auto">'+r.n+'只</span>'
+      + '</div>'
+      + '<div style="font-size:16px;font-weight:700;color:#e03131;line-height:1.35;margin-top:1px">'+r.zt
+      +   '<span style="font-size:11px;color:#868e96;font-weight:400">只涨停</span>'
+      +   '<span style="font-size:11px;color:#868e96;font-weight:400;margin-left:5px">'+r.ztr.toFixed(1)+'%</span></div>'
+      + '<div style="font-size:11px;color:#868e96;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">均涨 '
+      +   '<span style="color:'+cc(r.avg)+'">'+(r.avg>0?'+':'')+r.avg.toFixed(2)+'%</span> · 5日涨停 '+r.zt5+'</div>'
+      + '<div style="font-size:11px;color:#868e96;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">领涨 '
+      +   r.lead+' <span style="color:'+cc(r.leadChg)+'">'+(r.leadChg>0?'+':'')+r.leadChg.toFixed(1)+'%</span></div>'
+      + '</div>';
+  }).join('');
+  return '<div style="background:#fff;border:1px solid var(--line);border-radius:8px;padding:12px;margin-bottom:12px">'
+    + '<div style="font-size:13px;font-weight:600;margin-bottom:8px">🧩 活跃概念题材 · 强势板块 TOP10'
+    + '<span style="color:#adb5bd;font-size:11px;font-weight:400"> · 强势度 = 涨停家数^0.6×10 + 涨停率×2 + 当日均涨 · '
+    + '仅统计概念题材(已剔除地域/指数风格/财报类标签), 并排除成分股超 800 只的属性类宽标签 · 涨停判定与下方梯队同源</span></div>'
+    + '<div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px">'
+    + cards
+    + '</div></div>';
+}
 function ztTableHtml(arr, label){
   if(!arr.length) return '<div style="padding:8px 10px;color:#868e96;font-size:12px">无</div>';
   var t = '<table style="width:100%;border-collapse:collapse;font-size:12px">'
@@ -1495,8 +1599,10 @@ function renderZt(){
       + '<div id="ztSenti" style="width:100%;height:420px"></div>'
       + '</div>' : '';
     var bdHtml = bingdianCardHtml(target);
-    // 板块顺序: 市场情绪温度计 → 涨停板块热度饼图 → 涨停板梯队(三列) → 冰点策略
-    var html = senHtml
+    // 板块顺序: 市场情绪温度计 → 活跃概念题材强势板块TOP10 → 涨停板块热度饼图 → 涨停板梯队(三列) → 冰点策略
+    // 等概念映射包就绪再一次性渲染(加载失败也会回调, 只是少这一块, 不阻塞其余板块)
+    sectorLoadRef(function(){
+      var html = senHtml + sectorTop10Html(target)
       + '<div style="background:#fff;border:1px solid var(--line);border-radius:8px;padding:10px;margin-bottom:12px">'
       + '<div style="font-size:12.5px;font-weight:600;margin-bottom:4px">📊 涨停板块热度（'+r.total+' 只涨停）<span style="color:#adb5bd;font-size:11px;font-weight:400"> · 点击扇区/图例可查看个股明细</span></div>'
       + '<div id="ztPie" style="width:100%;height:400px"></div>'
@@ -1516,6 +1622,7 @@ function renderZt(){
     document.getElementById('ztBody').innerHTML = html;
     if(sen) renderZtSentiChart(sen, target);
     renderZtPie(r);
+    });
   });
 }
 // ===== 涨停板块热度饼图 (与涨幅榜板块分布 renderPie 同款样式: 外层名称引导线+内层百分比+可点击明细) =====

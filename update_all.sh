@@ -265,7 +265,7 @@ echo "==== [9/9] 同步 dist + gzip ===="
 # 历史上的故障就是只更新了 .js 却没重新 gzip, 而页面优先加载 .gz, 导致线上一直读到旧包
 rm -f dist_strong/*.gz
 cp -f strong_screener.html buydian_v21.html \
-      strong_data.js buydian_v21_data.js year_kline.js kline_ref.js gain_board.js \
+      strong_data.js buydian_v21_data.js year_kline.js kline_ref.js gain_board.js sector_ref.js \
       echarts.min.js echarts.min.js.gz dist_strong/
 "$PY" rebuild_gz.py --targets . dist_strong
 
