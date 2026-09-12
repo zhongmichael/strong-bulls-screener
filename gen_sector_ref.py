@@ -9,9 +9,16 @@
     window.SECTOR_MAP   = {"sh600519":[3,17,42],...}    # 个股 -> 概念索引数组
     window.SECTOR_CODES = ["BK1136","BK0877",...]       # 与 SECTOR_NAMES 同序的东财板块代码
                                                         # (空串=未解析, 前端则不渲染跳转)
+    window.SECTOR_THS   = ["308832","",...]             # 与 SECTOR_NAMES 同序的同花顺概念代码
+                                                        # (空串=同花顺无对应板块, 前端不渲染入口)
 
 SECTOR_CODES 由 fetch_block_codes.py 产出 data/out/block_codes.json 提供,
 用于前端点击板块卡片跳转 eastmoney 板块指数页 https://quote.eastmoney.com/bk/90.<BK>.html
+
+SECTOR_THS 由 fetch_ths_codes.py 产出 data/out/ths_block_codes.json 提供,
+用于卡片副入口跳转同花顺概念页 https://q.10jqka.com.cn/gn/detail/code/<code>/
+**两套代码体系互不相通**(东财 BKxxxx / 同花顺 6 位数字), 且概念命名差异很大,
+同花顺侧只有约 55% 能对上, 对不上的留空 -> 前端不渲染入口(不猜、不硬套)。
 
 过滤掉的标签(它们不是「概念题材」):
   - 申万一级行业 31 个(走 meta[sym][3]/[5], 不混入概念)
@@ -56,6 +63,15 @@ def main():
         print('! 未找到 data/out/block_codes.json, SECTOR_CODES 将为空(卡片不可点击)')
         print('  先跑: python3 fetch_block_codes.py')
 
+    # 0b) 同花顺概念代码表(可选, 缺则同花顺入口不渲染)
+    tpath = os.path.join(OUT, 'ths_block_codes.json')
+    if os.path.exists(tpath):
+        ths = json.load(open(tpath, encoding='utf-8'))
+    else:
+        ths = {}
+        print('! 未找到 data/out/ths_block_codes.json, SECTOR_THS 将为空(无同花顺入口)')
+        print('  先跑: python3 fetch_ths_codes.py')
+
     # 1) 申万二/三级 = 个股标签里「地域标签之前」的那些(顺序不定但都排在地域前)
     sw23 = set()
     for sym, blk in blocks.items():
@@ -91,7 +107,9 @@ def main():
     js = ('window.SECTOR_NAMES=' + json.dumps(names, ensure_ascii=False, separators=(',', ':')) + ';\n'
           + 'window.SECTOR_MAP=' + json.dumps(smap, ensure_ascii=False, separators=(',', ':')) + ';\n'
           + 'window.SECTOR_CODES=' + json.dumps(
-                [codes.get(n, '') for n in names], ensure_ascii=False, separators=(',', ':')) + ';\n')
+                [codes.get(n, '') for n in names], ensure_ascii=False, separators=(',', ':')) + ';\n'
+          + 'window.SECTOR_THS=' + json.dumps(
+                [ths.get(n, '') for n in names], ensure_ascii=False, separators=(',', ':')) + ';\n')
     p = os.path.join(BASE, 'sector_ref.js')
     with open(p, 'w', encoding='utf-8') as f:
         f.write(js)
@@ -100,7 +118,9 @@ def main():
     print('概念题材 %d 个 | 覆盖个股 %d 只' % (len(names), len(smap)))
     print('每只股票概念数: 中位 %d, 最少 %d, 最多 %d' % (
         sorted(cov)[len(cov) // 2], min(cov), max(cov)))
-    print('板块代码: 已解析 %d / %d' % (sum(1 for n in names if codes.get(n)), len(names)))
+    print('板块代码: 东财已解析 %d / %d' % (sum(1 for n in names if codes.get(n)), len(names)))
+    print('板块代码: 同花顺已解析 %d / %d (同花顺无对应的概念不渲染入口)' % (
+        sum(1 for n in names if ths.get(n)), len(names)))
     print('sector_ref.js: %d KB' % (os.path.getsize(p) // 1024))
     print('TOP15 概念(按覆盖数):', ' '.join('%s(%d)' % (n, freq[n]) for n in names[:15]))
 
