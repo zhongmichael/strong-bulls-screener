@@ -16,6 +16,8 @@ kline_ref.js
 year_kline.js
 gain_board.js
 sector_ref.js
+tdx_sector_ref.js
+ths_sector_ref.js
 signal_data.js
 top5_data.js
 data.js
@@ -35,6 +37,8 @@ dist_strong/year_kline.js
 dist_strong/gain_board.js
 dist_strong/buydian_v21_data.js
 dist_strong/sector_ref.js
+dist_strong/tdx_sector_ref.js
+dist_strong/ths_sector_ref.js
 dist_strong/refresh_state.json
 
 # ---------- 备份 / 归档 / 一次性产物 ----------

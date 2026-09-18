@@ -22,6 +22,8 @@ PACK = [
     "year_kline.js",
     "gain_board.js",
     "sector_ref.js",
+    "tdx_sector_ref.js",
+    "ths_sector_ref.js",
 ]
 
 

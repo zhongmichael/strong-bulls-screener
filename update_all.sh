@@ -28,7 +28,9 @@ start = (date.today() - timedelta(days=45)).isoformat()
 symbols = [os.path.basename(f)[:-5] for f in glob.glob(KLINE_DIR+"/*.json")]
 print(f"  更新 {len(symbols)} 只, 窗口 {start}~{end}")
 def fetch(sym):
-    url = f"https://proxy.finance.qq.com/ifzqgtimg/appstock/app/fqkline/get?param={sym},day,{start},{end},60,qfq"
+    # 不传 start/end 区间: 收盘后带区间的请求稳定少给一天(末日停在前一交易日),
+    # 会拿不到当日 bar。无区间固定返回最近 N 根, 与 refresh_core.js 保持一致。
+    url = f"https://proxy.finance.qq.com/ifzqgtimg/appstock/app/fqkline/get?param={sym},day,,,60,qfq"
     req = urllib.request.Request(url, headers={"User-Agent":"Mozilla/5.0","Referer":"https://gu.qq.com/"})
     for a in range(4):
         try:
@@ -265,7 +267,8 @@ echo "==== [9/9] 同步 dist + gzip ===="
 # 历史上的故障就是只更新了 .js 却没重新 gzip, 而页面优先加载 .gz, 导致线上一直读到旧包
 rm -f dist_strong/*.gz
 cp -f strong_screener.html buydian_v21.html \
-      strong_data.js buydian_v21_data.js year_kline.js kline_ref.js gain_board.js sector_ref.js \
+      strong_data.js buydian_v21_data.js year_kline.js kline_ref.js gain_board.js \
+      sector_ref.js tdx_sector_ref.js ths_sector_ref.js \
       echarts.min.js echarts.min.js.gz dist_strong/
 "$PY" rebuild_gz.py --targets . dist_strong
 

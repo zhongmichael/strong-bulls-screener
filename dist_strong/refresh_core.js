@@ -263,8 +263,15 @@ function httpGet(url, timeoutMs){
 }
 async function fetchKline(sym, startStr, endStr){
   // 与前端 fetchLatest / update_all.sh 同一接口与窗口(<=50根), 返回 [date,o,c,h,l,v,...] 数组
+  // 关键: **不要传 start/end 区间**。
+  // 收盘后(15:05~晚间)带显式区间的请求会稳定少给一天(实测 2026-09-18 16:40:
+  // `...,day,2026-08-04,2026-09-18,50,qfq` 末日恒为 2026-09-17, 20/20;
+  // 而 `...,day,,,50,qfq` 末日是 2026-09-18 且收盘价与实时行情 80/80 全等)。
+  // 后果: 覆盖率 cover 掉到 1.7% -> 既追加不了当日 bar, 也无法用真实收盘价覆盖
+  // 已经写进 ref/year_kline 的"盘中快照"(open 对、close/low/vol 停在盘中某刻),
+  // 快照被永久固化。无区间请求固定返回最近 51 根, 足够覆盖 REPAIR_N(8) 的校验窗口。
   const url = 'https://proxy.finance.qq.com/ifzqgtimg/appstock/app/fqkline/get?param='
-    + sym + ',day,' + startStr + ',' + endStr + ',50,qfq';
+    + sym + ',day,,,50,qfq';
   const r = await httpGet(url, 20000);
   const j = await r.json();
   const item = (j && j.data && j.data[sym]) || {};

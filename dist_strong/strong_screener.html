@@ -920,7 +920,10 @@ if(window.__DATA_READY) window.__bootMain();
 // 轮询等待数据就绪(最多约45秒)后立刻触发, 保证每次进入都会向服务端核对一次。
 (function autoKickLeft(n){
   if(window.__DATA_READY){
-    setTimeout(function(){ if(window.__autoRefresh) window.__autoRefresh(); }, 800);
+    setTimeout(function(){
+      if(window.__autoRefresh) window.__autoRefresh();
+      if(window.__postCloseCheck) window.__postCloseCheck();   // 盘中加载的页面, 到收盘后再核对一次
+    }, 800);
     return;
   }
   if(n <= 0) return;
@@ -1447,39 +1450,110 @@ function ztCompute(targetDate){
   out.l3.sort(byB); out.l2.sort(byB); out.l1.sort(function(a,b){ return b.strength-a.strength; });
   return out;
 }
-// ===== 活跃概念题材 · 强势板块 TOP10 =====
-// 概念映射来自 sector_ref.js (由 gen_sector_ref.py 从 stock_blocks.json 抽取, 已剔除地域/指数风格/财报类标签)
-// 全部指标用本页同一份 K线 + 同一套涨停判定口径自己算, 不引外部板块指数
-var secRefState = 0;   // 0=未加载 1=加载中 2=已就绪
-function sectorLoadRef(cb){
-  if(window.SECTOR_MAP){ secRefState = 2; cb(); return; }
-  if(secRefState === 2){ cb(); return; }
-  if(secRefState === 1){ setTimeout(function(){ sectorLoadRef(cb); }, 100); return; }
-  secRefState = 1;
-  var done = function(){ secRefState = 2; cb(); };
-  var byTag = function(){
-    var s = document.createElement('script');
-    s.src = 'sector_ref.js';
-    s.onload = done;
-    s.onerror = function(){ secRefState = 0; cb(); };
+// ===== 强势板块 TOP10 (三套板块口径) =====
+//  ths     —— 同花顺官方「概念板块」(ths_sector_ref.js, 由 fetch_ths_blocks.py 抓同花顺板块指数接口
+//             d.10jqka.com.cn, 与同花顺客户端同一行情源)。成分股数/上涨下跌家数/涨停家数/首板/连板
+//             **全部是同花顺官方字段**, 不经本页重算 —— 所以口径与同花顺 App 的「热门板块」一致。
+//  tdx     —— 通达信官方「主题板块」(tdx_sector_ref.js, 由 fetch_tdx_blocks.py 抓通达信 TQLEX 接口,
+//             与通达信客户端 F10 主题板块页同源; 已剔除「最近多板/近期新高/次新股」等交易事件榜)
+//  concept —— 东财概念标签(sector_ref.js, 由 gen_sector_ref.py 从 stock_blocks.json 抽取)
+// tdx/concept 用「本页同一份K线 + 同一套涨停判定」自己算; ths 直接用同花顺官方板块指数统计。
+// 三套数据包都是可选依赖: 加载失败自动降级到下一套, 三套都没有才不渲染这一块, 不影响页面其余部分
+var secPkg = { concept: ['sector_ref', 'SECTOR_MAP'], tdx: ['tdx_sector_ref', 'TDX_SECTOR_MAP'],
+               ths: ['ths_sector_ref', 'THS_SECTOR_STAT'] };
+var secState = { concept: 0, tdx: 0, ths: 0 };   // 0=未加载 1=加载中 2=已就绪
+function secGetSrc(){
+  try{                                  // 支持 ?secSrc=ths|tdx|concept 强制指定(调试/分享用), 不写 localStorage
+    var q = (location.search.match(/[?&]secSrc=(ths|tdx|concept)/) || [])[1];
+    if(q) return q;
+    var v = localStorage.getItem('secSrc'); if(secPkg[v]) return v;
+  }catch(e){}
+  return 'ths';        // 默认走同花顺口径
+}
+var secSrc = secGetSrc();
+window.__secSetSrc = function(s){
+  if(!secPkg[s]) return;
+  secSrc = s;
+  try{ localStorage.setItem('secSrc', s); }catch(e){}
+  if(typeof renderZt === 'function') renderZt();
+};
+function secLoadPkg(base, cb){
+  var done = function(ok){
+    if(ok) return cb(true);
+    var s = document.createElement('script');    // 无 DecompressionStream / gz 缺失时退回明文包
+    s.src = base + '.js';
+    s.onload = function(){ cb(!!secPkgMap[base]); };
+    s.onerror = function(){ cb(false); };
     document.body.appendChild(s);
   };
-  fetch('sector_ref.js.gz').then(function(r){
+  if(!window.DecompressionStream) return done(false);
+  fetch(base + '.js.gz').then(function(r){
     if(!r.ok) throw 0;
     return r.arrayBuffer();
   }).then(function(buf){
-    if(!window.DecompressionStream) throw 0;
     var ds = new DecompressionStream('gzip');
     return new Response(new Blob([buf]).stream().pipeThrough(ds)).arrayBuffer();
   }).then(function(d){
     eval(new TextDecoder().decode(d));
-    done();
-  }).catch(byTag);
+    cb(!!secPkgMap[base]);
+  }).catch(function(){ done(false); });
+}
+var secPkgMap = { 'sector_ref': 'SECTOR_MAP', 'tdx_sector_ref': 'TDX_SECTOR_MAP', 'ths_sector_ref': 'THS_SECTOR_STAT' };
+function secLoad(which, cb){
+  var pk = secPkg[which] || secPkg.concept;
+  if(window[pk[1]]){ secState[which] = 2; cb(true); return; }
+  if(secState[which] === 1){ setTimeout(function(){ secLoad(which, cb); }, 100); return; }
+  secState[which] = 1;
+  secLoadPkg(pk[0], function(ok){
+    var ready = !!window[pk[1]];
+    secState[which] = ready ? 2 : 0;
+    cb(ready && ok !== false);
+  });
+}
+function sectorLoadRef(cb){ secLoad('concept', cb); }
+function sectorLoadTdx(cb){ secLoad('tdx', cb); }
+function sectorLoadThs(cb){ secLoad('ths', cb); }
+// 按当前口径加载; 该口径数据包缺失时按 ths→tdx→concept 依次降级, 都没有则回调 null
+function sectorLoadActive(cb){
+  var order = [secSrc].concat(['ths', 'tdx', 'concept'].filter(function(x){ return x !== secSrc; }));
+  (function next(i){
+    if(i >= order.length){ cb(null); return; }
+    secLoad(order[i], function(ok){ ok ? cb(order[i]) : next(i + 1); });
+  })(0);
 }
 var SEC_MIN = 10;     // 成分股下限: 样本太小(如3只)的涨停率噪声极大
-var SEC_MAX = 800;    // 成分股上限: 「央国企改革」1411只 / 「专精特新」1253只 属企业属性标签, 覆盖1/4市场无区分度
-function sectorTop10(targetDate, topN){
-  var M = window.SECTOR_MAP, NM = window.SECTOR_NAMES, KR = window.KLINE_REF;
+var SEC_MAX = 800;    // 成分股上限: 剔除「央国企改革/专精特新」这类覆盖1/4市场、无区分度的属性宽标签
+// --- 同花顺官方板块指数口径: 成分股数/涨跌家数/涨停/首板/连板 全部直接取同花顺字段, 本页不重算 ---
+// (同花顺板块指数接口一次给全 361 个板块的官方统计, 且与同花顺 App「热门板块」同源)
+function sectorTop10Ths(topN){
+  var NM = window.THS_SECTOR_NAMES, ST = window.THS_SECTOR_STAT, RT = window.THS_SECTOR_RET,
+      GN = window.THS_SECTOR_GN, EM = window.THS_SECTOR_EM;
+  if(!NM || !ST) return null;
+  var rows = [];
+  for(var i = 0; i < NM.length; i++){
+    var s = ST[i] || [];
+    var n = s[2] | 0, zt = s[5] | 0;
+    if(n < SEC_MIN || n > SEC_MAX || zt === 0) continue;
+    var chg = +s[0] || 0, r = RT[i] || [0, 0], ztr = zt / n * 100;
+    rows.push({name:NM[i], n:n, zt:zt, sb:s[6] | 0, lb:s[7] | 0, avg:chg, ztr:ztr,
+      amt:+s[1] || 0, up:s[3] | 0, dn:s[4] | 0, r5:+r[0] || 0, r20:+r[1] || 0,
+      gn:(GN || [])[i] || '', em:(EM || [])[i] || '',
+      // 与另两套口径同一公式; 只是「当日均涨」这一项换成同花顺板块指数涨幅
+      score:Math.pow(zt, 0.6) * 10 + ztr * 2 + chg});
+  }
+  rows.sort(function(a, b){ return b.score - a.score; });
+  return rows.slice(0, topN || 10);
+}
+function sectorTop10(targetDate, topN, src){
+  src = src || secSrc;
+  if(src === 'ths') return sectorTop10Ths(topN);
+  var tdx = (src === 'tdx');
+  var M = tdx ? window.TDX_SECTOR_MAP : window.SECTOR_MAP;
+  var NM = tdx ? window.TDX_SECTOR_NAMES : window.SECTOR_NAMES;
+  var TY = tdx ? window.TDX_SECTOR_TYPE : null;      // 通达信主题类型(信息技术/新能源/高端装备...)
+  var CD = tdx ? window.TDX_SECTOR_CODES : window.SECTOR_CODES;
+  var TS = tdx ? window.TDX_SECTOR_THS : window.SECTOR_THS;
+  var KR = window.KLINE_REF;
   if(!M || !NM || !KR) return null;
   var meta = (window.STRONG_DATA || {}).meta || {};
   topN = topN || 10;
@@ -1516,71 +1590,136 @@ function sectorTop10(targetDate, topN){
     if(m < SEC_MIN || m > SEC_MAX || ztN[q] === 0) continue;
     var avg = sum[q] / m, ztr = ztN[q] / m * 100;
     // 强势度: 涨停家数开0.6次方(抑制宽题材靠数量霸榜) + 涨停率 + 当日均涨
-    rows.push({name:NM[q], n:m, zt:ztN[q], zt5:zt5N[q], avg:avg, ztr:ztr,
-      code:(window.SECTOR_CODES||[])[q] || '',
-      ths:(window.SECTOR_THS||[])[q] || '',
+    rows.push({name:NM[q], type:(TY||[])[q] || '', n:m, zt:ztN[q], zt5:zt5N[q], avg:avg, ztr:ztr,
+      code:(CD||[])[q] || '',
+      ths:(TS||[])[q] || '',
       score:Math.pow(ztN[q], 0.6)*10 + ztr*2 + avg,
       lead:bestName[q], leadChg:bestChg[q]});
   }
   rows.sort(function(a,b){ return b.score - a.score; });
   return rows.slice(0, topN);
 }
-function sectorTop10Html(targetDate){
-  var list = sectorTop10(targetDate, 10);
+function sectorSrcSwitch(cur){
+  var base = 'font-size:11px;padding:2px 7px;border-radius:10px;text-decoration:none;cursor:pointer;margin-left:4px;border:1px solid ';
+  var on = base + '#ffa8a8;background:#fff5f5;color:#c92a2a;font-weight:600';
+  var off = base + '#dee2e6;background:#fff;color:#868e96';
+  function btn(src, label, tip){
+    return '<a href="javascript:void(0)" onclick="window.__secSetSrc(\'' + src + '\')" title="' + tip + '"'
+      + ' style="' + (cur === src ? on : off) + '">' + label + '</a>';
+  }
+  return '<span style="font-weight:400;white-space:nowrap">'
+    + btn('ths', '同花顺概念板块', '同花顺官方板块指数口径：成分股数/涨跌家数/涨停家数全部取同花顺字段，与同花顺 App 热门板块同源')
+    + btn('tdx', '通达信主题板块', '通达信客户端 F10 主题板块同一套板块归属')
+    + btn('concept', '东财概念题材', '东方财富概念标签口径')
+    + '</span>';
+}
+function sectorTop10Html(targetDate, src){
+  src = src || secSrc;
+  var list = sectorTop10(targetDate, 10, src);
   if(!list || !list.length) return '';
+  var tdx = (src === 'tdx');
+  var ths = (src === 'ths');
   var cc = function(v){ return v >= 0 ? '#e03131' : '#0ca678'; };
+  var pct = function(v){ return (v > 0 ? '+' : '') + v.toFixed(2) + '%'; };
   var CARDBOX = 'border:1px solid #e9ecef;border-radius:6px;padding:7px 9px;background:#fff;min-width:0';
   var cards = list.map(function(r, i){
-    // 主入口: 东财板块指数页(整卡可点)  副入口: 同花顺概念页(右下角小标签, 无对应则不渲染)
-    var href = r.code ? ('https://quote.eastmoney.com/bk/90.' + r.code + '.html') : '';
-    var thsHref = r.ths ? ('https://q.10jqka.com.cn/gn/detail/code/' + r.ths + '/') : '';
-    var inner = '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:6px">'
-      +   '<span style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+r.name+'">'
-      +     '<span style="color:'+(i<3?'#e03131':'#868e96')+';font-weight:700">'+(i+1)+'</span> '+r.name
-      +     (href ? ' <span style="color:#adb5bd;font-size:10px">↗</span>' : '') + '</span>'
-      +   '<span style="font-size:11px;color:#adb5bd;flex:0 0 auto">'+r.n+'只</span>'
-      + '</div>'
-      + '<div style="font-size:16px;font-weight:700;color:#e03131;line-height:1.35;margin-top:1px">'+r.zt
-      +   '<span style="font-size:11px;color:#868e96;font-weight:400">只涨停</span>'
-      +   '<span style="font-size:11px;color:#868e96;font-weight:400;margin-left:5px">'+r.ztr.toFixed(1)+'%</span></div>'
-      + '<div style="font-size:11px;color:#868e96;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">均涨 '
-      +   '<span style="color:'+cc(r.avg)+'">'+(r.avg>0?'+':'')+r.avg.toFixed(2)+'%</span> · 5日涨停 '+r.zt5+'</div>'
-      // 末行右侧给同花顺标签留位, 避免领涨股文字压到标签下面
-      + '<div style="font-size:11px;color:#868e96;white-space:nowrap;overflow:hidden;text-overflow:ellipsis'
-      +   (thsHref ? ';padding-right:46px' : '') + '">领涨 '
-      +   r.lead+' <span style="color:'+cc(r.leadChg)+'">'+(r.leadChg>0?'+':'')+r.leadChg.toFixed(1)+'%</span></div>';
+    // 主入口(整卡可点) + 副入口(右下角小标签, 兄弟节点; 无对应则不渲染)
+    var href, sub, subTxt, subTip, inner;
+    if(ths){
+      // 同花顺口径: 主入口 = 同花顺概念页, 副入口 = 东财板块指数(按名称匹配得上才有)
+      href = r.gn ? ('https://q.10jqka.com.cn/gn/detail/code/' + r.gn + '/') : '';
+      sub = r.em ? ('https://quote.eastmoney.com/bk/90.' + r.em + '.html') : '';
+      subTxt = '东财'; subTip = ' · 在东方财富查看同板块指数';
+      inner = '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:6px">'
+        +   '<span style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+r.name+'">'
+        +     '<span style="color:'+(i<3?'#e03131':'#868e96')+';font-weight:700">'+(i+1)+'</span> '+r.name
+        +     (href ? ' <span style="color:#adb5bd;font-size:10px">↗</span>' : '') + '</span>'
+        +   '<span style="font-size:11px;color:#adb5bd;flex:0 0 auto">'+r.n+'只</span>'
+        + '</div>'
+        + '<div style="font-size:16px;font-weight:700;color:#e03131;line-height:1.35;margin-top:1px">'+r.zt
+        +   '<span style="font-size:11px;color:#868e96;font-weight:400">只涨停</span>'
+        +   '<span style="font-size:11px;color:#868e96;font-weight:400;margin-left:5px">'+r.ztr.toFixed(1)+'%</span></div>'
+        + '<div style="font-size:11px;color:#868e96;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">指数 '
+        +   '<span style="color:'+cc(r.avg)+'">'+pct(r.avg)+'</span>'
+        +   ' · 5日 <span style="color:'+cc(r.r5)+'">'+pct(r.r5)+'</span></div>'
+        + '<div style="font-size:11px;color:#868e96;white-space:nowrap;overflow:hidden;text-overflow:ellipsis'
+        +   (sub ? ';padding-right:46px' : '') + '">首板 '+r.sb+' · 连板 '+r.lb+'</div>';
+    } else {
+      href = r.code ? ('https://quote.eastmoney.com/bk/90.' + r.code + '.html') : '';
+      sub = r.ths ? ('https://q.10jqka.com.cn/gn/detail/code/' + r.ths + '/') : '';
+      subTxt = '同花顺'; subTip = ' · 在同花顺查看该概念';
+      var tag = r.type ? '<span style="font-size:9.5px;color:#868e96;background:#f1f3f5;border-radius:3px;padding:0 4px;margin-left:4px">' + r.type + '</span>' : '';
+      inner = '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:6px">'
+        +   '<span style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+r.name+(r.type?'（'+r.type+'）':'')+'">'
+        +     '<span style="color:'+(i<3?'#e03131':'#868e96')+';font-weight:700">'+(i+1)+'</span> '+r.name
+        +     (href ? ' <span style="color:#adb5bd;font-size:10px">↗</span>' : '') + '</span>'
+        +   '<span style="font-size:11px;color:#adb5bd;flex:0 0 auto">'+r.n+'只</span>'
+        + '</div>'
+        + '<div style="font-size:16px;font-weight:700;color:#e03131;line-height:1.35;margin-top:1px">'+r.zt
+        +   '<span style="font-size:11px;color:#868e96;font-weight:400">只涨停</span>'
+        +   '<span style="font-size:11px;color:#868e96;font-weight:400;margin-left:5px">'+r.ztr.toFixed(1)+'%</span></div>'
+        + '<div style="font-size:11px;color:#868e96;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">均涨 '
+        +   '<span style="color:'+cc(r.avg)+'">'+(r.avg>0?'+':'')+r.avg.toFixed(2)+'%</span> · 5日涨停 '+r.zt5+'</div>'
+        // 末行右侧给副入口标签留位, 避免领涨股文字压到标签下面
+        + '<div style="font-size:11px;color:#868e96;white-space:nowrap;overflow:hidden;text-overflow:ellipsis'
+        +   (sub ? ';padding-right:46px' : '') + '">领涨 '
+        +   r.lead+' <span style="color:'+cc(r.leadChg)+'">'+(r.leadChg>0?'+':'')+r.leadChg.toFixed(1)+'%</span>'+tag+'</div>';
+    }
 
     var card;
     if(!href){
       card = '<div style="'+CARDBOX+'">' + inner + '</div>';
     } else {
       card = '<a href="'+href+'" target="_blank" rel="noopener noreferrer"'
-        + ' title="'+r.name+'（'+r.code+'）· 点击查看东方财富板块指数"'
+        + ' title="'+r.name+(ths ? ' · 点击查看同花顺概念页' : '（'+r.code+'）· 点击查看东方财富板块指数')+'"'
         + ' style="display:block;'+CARDBOX+';text-decoration:none;color:inherit;cursor:pointer;'
         +   'transition:border-color .12s,box-shadow .12s,transform .12s"'
         + ' onmouseover="this.style.borderColor=\'#ffa8a8\';this.style.boxShadow=\'0 2px 8px rgba(224,49,49,.14)\';this.style.transform=\'translateY(-1px)\'"'
         + ' onmouseout="this.style.borderColor=\'#e9ecef\';this.style.boxShadow=\'none\';this.style.transform=\'none\'">'
         + inner + '</a>';
     }
-    if(!thsHref) return card;
-    // 同花顺标签必须是卡片的**兄弟节点** —— <a> 内部不能再嵌 <a>(HTML 不允许, 会被浏览器拆散)
+    if(!sub) return card;
+    // 副入口标签必须是卡片的**兄弟节点** —— <a> 内部不能再嵌 <a>(HTML 不允许, 会被浏览器拆散)
     return '<div style="position:relative;min-width:0">' + card
-      + '<a href="'+thsHref+'" target="_blank" rel="noopener noreferrer"'
-      + ' title="'+r.name+' · 在同花顺查看该概念"'
+      + '<a href="'+sub+'" target="_blank" rel="noopener noreferrer"'
+      + ' title="'+r.name+subTip+'"'
       + ' style="position:absolute;right:7px;bottom:5px;font-size:9.5px;line-height:1;padding:3px 5px;'
       +   'border-radius:3px;background:#f1f3f5;color:#495057;text-decoration:none;cursor:pointer;'
       +   'transition:background .12s,color .12s"'
       + ' onmouseover="this.style.background=\'#ffe3e3\';this.style.color=\'#c92a2a\'"'
-      + ' onmouseout="this.style.background=\'#f1f3f5\';this.style.color=\'#495057\'">同花顺</a>'
+      + ' onmouseout="this.style.background=\'#f1f3f5\';this.style.color=\'#495057\'">'+subTxt+'</a>'
       + '</div>';
   }).join('');
+  var title = ths ? '🧩 同花顺概念板块 · 强势板块 TOP10'
+            : (tdx ? '🧩 通达信主题板块 · 强势板块 TOP10' : '🧩 活跃概念题材 · 强势板块 TOP10');
+  var snap = window.THS_SECTOR_DATE || '';
+  var stale = (ths && targetDate && snap && targetDate !== snap)
+    ? ' <b style="color:#e8590c;font-weight:600">⚠ 当前选中日期 ' + targetDate + ' 与同花顺快照日 ' + snap
+      + ' 不同, 本口径仍显示快照日数据(同花顺官方统计只有当日快照, 无历史)</b>'
+    : '';
+  var note = ths
+    ? '· 板块归属与<b style="color:#1971c2;font-weight:600">全部指标</b>都取自<b style="color:#1971c2;font-weight:600">同花顺官方板块指数</b>'
+      + '(d.10jqka.com.cn 行情桥, 与同花顺 App 同一数据源) —— 成分股数/上涨下跌家数/涨停家数/首板/连板全是同花顺口径, '
+      + '与同花顺「热门板块」一致 · 已剔除融资融券/次新股/地域等属性类标签, 并排除成分股超 800 只的宽标签 · '
+      + '快照交易日 <b>' + (snap || '?') + '</b>' + stale
+    : (tdx
+      ? '· 板块归属取自<b style="color:#1971c2;font-weight:600">通达信官方「主题板块」库</b>(与通达信客户端 F10 主题板块页同一数据源, 288 个主题/覆盖 5161 只), 已剔除「最近多板/近期新高/次新股」等交易事件榜 · 通达信口径的成分股比东财宽(含长尾关联), 板块只数普遍偏多'
+      : '· 概念标签来自东方财富口径(已剔除地域/指数风格/财报类标签), 并排除成分股超 800 只的属性类宽标签');
+  var formula = ths ? '强势度 = 涨停家数^0.6×10 + 涨停率×2 + 板块指数涨幅'
+                    : '强势度 = 涨停家数^0.6×10 + 涨停率×2 + 当日均涨';
+  var srcNote = ths ? '同花顺官方统计口径(本页不重算)'
+                    : '涨停判定与下方梯队同源';
+  var links = ths
+    ? '<span style="color:#e8590c">点卡片 ↗ 开同花顺概念页</span> · '
+      + '<span style="color:#1971c2">右下角「东财」开东方财富板块指数</span>(同花顺无对应板块的卡片不显示该标签)'
+    : '<span style="color:#e8590c">点卡片 ↗ 开东方财富板块指数</span> · '
+      + '<span style="color:#1971c2">右下角「同花顺」开同花顺概念页</span>(两套概念命名不同, 同花顺无对应板块的卡片不显示该标签)';
   return '<div style="background:#fff;border:1px solid var(--line);border-radius:8px;padding:12px;margin-bottom:12px">'
-    + '<div style="font-size:13px;font-weight:600;margin-bottom:8px">🧩 活跃概念题材 · 强势板块 TOP10'
-    + '<span style="color:#adb5bd;font-size:11px;font-weight:400"> · 强势度 = 涨停家数^0.6×10 + 涨停率×2 + 当日均涨 · '
-    + '仅统计概念题材(已剔除地域/指数风格/财报类标签), 并排除成分股超 800 只的属性类宽标签 · 涨停判定与下方梯队同源 · '
-    + '<span style="color:#e8590c">点卡片 ↗ 开东方财富板块指数</span> · '
-    + '<span style="color:#1971c2">右下角「同花顺」开同花顺概念页</span>'
-    + '(两套概念命名不同, 同花顺无对应板块的卡片不显示该标签)</span></div>'
+    + '<div style="font-size:13px;font-weight:600;margin-bottom:8px">' + title
+    + sectorSrcSwitch(src)
+    + '<span style="color:#adb5bd;font-size:11px;font-weight:400"> · ' + formula + ' · '
+    + note + ' · ' + srcNote + ' · '
+    + links + '</span></div>'
     + '<div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px">'
     + cards
     + '</div></div>';
@@ -1633,10 +1772,10 @@ function renderZt(){
       + '<div id="ztSenti" style="width:100%;height:420px"></div>'
       + '</div>' : '';
     var bdHtml = bingdianCardHtml(target);
-    // 板块顺序: 市场情绪温度计 → 活跃概念题材强势板块TOP10 → 涨停板块热度饼图 → 涨停板梯队(三列) → 冰点策略
-    // 等概念映射包就绪再一次性渲染(加载失败也会回调, 只是少这一块, 不阻塞其余板块)
-    sectorLoadRef(function(){
-      var html = senHtml + sectorTop10Html(target)
+    // 板块顺序: 市场情绪温度计 → 强势板块TOP10(通达信主题/东财概念两口径可切换) → 涨停板块热度饼图 → 涨停板梯队(三列) → 冰点策略
+    // 等板块映射包就绪再一次性渲染(加载失败也会回调, 只是少这一块, 不阻塞其余板块)
+    sectorLoadActive(function(src){
+      var html = senHtml + (src ? sectorTop10Html(target, src) : '')
       + '<div style="background:#fff;border:1px solid var(--line);border-radius:8px;padding:10px;margin-bottom:12px">'
       + '<div style="font-size:12.5px;font-weight:600;margin-bottom:4px">📊 涨停板块热度（'+r.total+' 只涨停）<span style="color:#adb5bd;font-size:11px;font-weight:400"> · 点击扇区/图例可查看个股明细</span></div>'
       + '<div id="ztPie" style="width:100%;height:400px"></div>'
@@ -3298,8 +3437,10 @@ function fetchLatest(symbols, onProgress){
         if(idx >= total){ done++; if(done >= Math.min(limit, total)) resolve(results); return; }
         var i = idx++;
         var sym = symbols[i];
+        // 不传 start/end 区间: 收盘后带区间的请求稳定少给一天(末日停在前一交易日),
+        // 会拿不到当日 bar、也无法修正盘中快照。无区间固定返回最近 51 根。
         var url = 'https://proxy.finance.qq.com/ifzqgtimg/appstock/app/fqkline/get?param='
-          + sym + ',day,' + startStr + ',' + endStr + ',50,qfq';
+          + sym + ',day,,,50,qfq';
         fetch(url).then(function(r){ return r.json(); }).then(function(j){
           var item = (j&&j.data&&j.data[sym])||{};
           var arr = item.qfqday || item.day || [];
@@ -3316,6 +3457,29 @@ function fetchLatest(symbols, onProgress){
 
 // 增量刷新: 改由"服务端 /api/refresh"执行(有历史复用、缺失补拉到最新交易日),
 // 完成后服务端已把 .gz 数据重写, 重载页面即可读到最新 —— 不再需要浏览器逐个拉取, 也不再依赖每天重新发布。
+//
+// ---- 自动重载防环(2026-09-18 事故修复) ----
+// 症状: 打开页面后在「计算中…/加载K线数据…」之间反复循环, 等多久都出不来结果。
+// 根因: 有两个条件都在无条件判"需要重载":
+//   ① 旧判据 `!!j.changed || curLast !== j.latest` —— 盘中每轮真刷新都会写盘(价格在变, 必然有修正),
+//      服务端必然返回 changed=true; 页面据此重载 -> 重载后又立刻触发一次刷新 -> 再重载,
+//      如此自激成死循环, 永远停在加载态。
+//   ② 更狠的是服务端 60 秒冷却分支会**原样回放**上一轮的 changed=true(响应仅 ~1 秒),
+//      于是"重载 -> <1 秒拿到 changed=true -> 再重载"以秒级频率循环, 页面完全无法落地。
+// 修复:
+//   · 重载判据改成"服务端数据确实比本页新": 交易日更晚(页面落后一天以上) 或 本轮真的写了盘
+//     且不是冷却回放(j.replay)。盘中单纯的价格波动不再触发重载。
+//   · **自动路径每次页面加载最多重载 1 次**(sessionStorage 记账), 从机制上断环;
+//     手动点「刷新最新数据」不受此限(用户主动行为不会自激)。
+//   · 配合服务端把冷却回放的 changed 归零, 两侧都不再制造假"有变化"。
+var AR_KEY = 'scAutoReloadV1';
+var pageAutoReloaded = false;
+try{ pageAutoReloaded = sessionStorage.getItem(AR_KEY) === '1'; sessionStorage.removeItem(AR_KEY); }catch(e){}
+var pageLoadedInSession = false;   // 本页是否在交易时段内加载(此时数据可能是盘中快照)
+(function(){
+  var now = new Date(), wd = now.getDay(), hhmm = now.getHours() * 100 + now.getMinutes();
+  pageLoadedInSession = (wd >= 1 && wd <= 5 && hhmm >= 925 && hhmm <= 1505);
+})();
 function doRefresh(silent){
   if(refreshing) return;
   refreshing = true;
@@ -3323,13 +3487,23 @@ function doRefresh(silent){
   tip(silent ? '📡 正在向服务端核对最新收盘数据（必要时自动补拉，可继续浏览）…' : '正在请求服务端增量刷新…');
   fetch('/api/refresh?d=' + Date.now()).then(function(r){ return r.json(); }).then(function(j){
     if(j && j.ok){
-      // 是否重载的判断 = 服务端本次有新写入(changed) OR 页面数据落后于服务端。
-      // 只看 changed=false 就直接返回是错的: 服务端可能早就刷新到最新(changed=false),
-      // 而浏览器里的页面是很久前加载的(或命中了 5 分钟缓存的旧包), 此时不重载,
-      // 页面就永远停在过去的数据上 —— 表现就是"每次刷新都拿不到完整的最新数据"。
+      // 是否重载的判断 = 服务端数据确实比本页新。两个判据都不看"单纯的价格变动":
+      //   · newerDay: 服务端已有更晚的交易日 —— 页面落后一天以上(隔夜/隔几天再打开), 必须重载;
+      //   · wrote   : 本轮服务端确实写了盘(排除冷却期回放) —— 说明本页加载的那份已被改写,
+      //               例如收盘后把盘中快照修正为真实收盘价, 这一版必须重载才能看到。
+      // 只有 changed=true 就重载是错的: 盘中每轮都会写盘(changed 恒为 true), 会自激成死循环。
       var D = window.STRONG_DATA || {};
       var curLast = (D.dates && D.dates.length) ? D.dates[D.dates.length - 1] : '';
-      var needReload = !!j.changed || (!!curLast && !!j.latest && curLast !== j.latest);
+      var newerDay = !!curLast && !!j.latest && curLast < j.latest;
+      var wrote = !!j.changed && !j.replay;
+      var needReload = newerDay || wrote;
+      if(needReload && silent && pageAutoReloaded){
+        // 本页加载已经自动重载过一次 —— 只提示不再重载, 这是断环的关键一步。
+        tip('✅ 服务端数据已更新至 ' + j.latest + '（本页已是自动刷新后的最新一版；想立刻重取请点「刷新最新数据」）');
+        btnText('🔄 刷新最新数据');
+        refreshing = false;
+        return;
+      }
       if(!needReload){
         tip(j.message || '✅ 数据已是最新：' + j.latest + '（页面数据 = 服务端数据，无需重载）');
         btnText('🔄 刷新最新数据');
@@ -3339,6 +3513,8 @@ function doRefresh(silent){
       tip('✅ 服务端数据已更新至 ' + j.latest
           + (j.added ? '（新增 ' + j.added + ' 根K线，强势池 ' + j.pool + ' 只）' : '')
           + '，正在重载…');
+      // 记一次账: 下一次页面加载不允许再自动重载(手动点击不受限)
+      try{ sessionStorage.setItem(AR_KEY, '1'); }catch(e){}
       // 加时间戳参数再跳: 避免中间层/浏览器复用旧文档, 重载后仍走旧链路
       setTimeout(function(){
         location.replace(location.pathname + '?_t=' + Date.now() + (location.hash || ''));
@@ -3362,7 +3538,8 @@ function doRefresh(silent){
 //   · 盘中(工作日 09:25–15:05): 每次都请求刷新, 拉到最新盘中数据并自动重载;
 //   · 非交易时段: 同样请求一次, 由服务端判断"最新交易日是否已在当日收盘后核对过收盘价":
 //       未核对(可能还停留在盘中快照) → 真刷修正并重载; 已核对 → 秒回缓存, 页面不闪动。
-// 请求静默执行, 不阻塞浏览。是否重载由 doRefresh 依据服务端 changed/日期 判定。
+// 请求静默执行, 不阻塞浏览。是否重载由 doRefresh 依据"服务端日期是否更晚 / 本轮是否真写了盘"
+// 判定, 且**自动路径每次页面加载最多重载一次** —— 否则盘中每轮刷新都会写盘, 会无限重载。
 window.__autoRefresh = function(){
   var D = window.STRONG_DATA;
   if(!D || !D.dates || !D.dates.length) return;
@@ -3381,6 +3558,23 @@ window.__autoRefresh = function(){
     setTimeout(function(){ doRefresh(true); }, 800);
   }
 };
+// 收盘后一次性核对: 页面若是在交易时段内加载的, 拿到的可能是"盘中快照"(涨跌停家数/温度分
+// 按盘中价算, 与收盘后真实值不符)。15:06 再自动核对一次, 让服务端把当日 bar 修正为真实收盘价
+// 并重载。触发后重载的那一页不再属于"盘中加载" -> 不会再排下一次, 不会形成循环。
+window.__postCloseCheck = function(){
+  if(!pageLoadedInSession) return;
+  var now = new Date();
+  if(now.getDay() === 0 || now.getDay() === 6) return;
+  var closeAt = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 15, 6, 0).getTime();
+  var delay = closeAt - now.getTime();
+  if(delay <= 0 || delay > 6 * 3600 * 1000) return;
+  setTimeout(function(){
+    try{ sessionStorage.removeItem(AR_KEY); }catch(e){}
+    pageAutoReloaded = false;          // 收盘核对是"另一件事", 允许重载一次
+    pageLoadedInSession = false;
+    doRefresh(true);
+  }, delay);
+};
 // 从后台标签页/浏览器缓存(bfcache)恢复回来时也核对一次, 避免长时间停在同一页面看到过期数据
 window.addEventListener('pageshow', function(e){
   if(e && e.persisted && window.__autoRefresh) setTimeout(window.__autoRefresh, 300);
@@ -3394,7 +3588,10 @@ function getISOWeek(d){
   var week1 = firstThursday.getTime() - 86400000*(firstThursday.getDay()+6)%7;
   return 1+Math.round((t.getTime()-week1)/604800000);
 }
-document.getElementById('btnRefresh').addEventListener('click', doRefresh);
+// 手动刷新: 明确传 silent=false。原先直接 addEventListener('click', doRefresh) 会把
+// MouseEvent 当成 silent 参数(对象恒为真值), 按钮既不会显示"刷新中…", 也会被当成静默调用 ——
+// 手动刷新必须按用户主动行为处理(允许重载, 不受"每页一次"限制)。
+document.getElementById('btnRefresh').addEventListener('click', function(){ doRefresh(false); });
 })();
 
 // ===== 视图切换 (选股器 / 涨幅榜 / 涨停梯队) =====

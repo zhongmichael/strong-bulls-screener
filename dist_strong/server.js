@@ -160,8 +160,18 @@ async function handleRefresh(req, res){
   }
   const now = Date.now();
   if(now - lastRunAt < COOLDOWN_MS && lastResult){
-    lastResult.cooldown = Math.round((COOLDOWN_MS - (now - lastRunAt)) / 1000);
-    return sendJson(res, 200, lastResult);
+    // 冷却期内回放上一轮结果。**必须把 changed 归零并打上 replay 标记**:
+    // 本轮并没有写盘, 若继续原样返回上一轮的 changed=true, 前端会认为"数据变了"而重载,
+    // 重载后立刻再请求(仍在冷却期)又拿到 changed=true -> 以秒级频率无限重载,
+    // 页面永远停在"计算中…"(2026-09-18 事故)。前端的重载判据已改为
+    // "服务端日期更晚 / 本轮真的写了盘且非回放", 这里同步把语义改正确。
+    const r = Object.assign({}, lastResult, {
+      cooldown: Math.round((COOLDOWN_MS - (now - lastRunAt)) / 1000),
+      replay: true, changed: false, running: false,
+      // 回放时给出上一轮真刷的完成时间/耗时, 便于外部(页面提示、每日任务)判断"服务端其实刚刷过"
+      refreshedAt: lastRunAt, refreshedTook: (lastResult && lastResult.took) || 0
+    });
+    return sendJson(res, 200, r);
   }
   running = true;
   try {

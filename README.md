@@ -20,7 +20,7 @@
 
 | Tab | 模块 | 页面主容器 | 依赖数据包 | 后端算法 / 生成脚本 |
 |---|---|---|---|---|
-| ⚡ **涨停梯队**（默认） | 连板梯队 + 市场情绪温度计 + 活跃概念题材强势板块 TOP10（整卡点东财 / 右下角标签点同花顺） | `#ztCard` | `kline_ref.js`<br>`year_kline.js`<br>`sector_ref.js` | `gen_gain_board.py`（year_kline）<br>`gen_sector_ref.py`（概念映射 + 双平台板块代码）<br>+ 页面内 `ztCompute` / `ztSentiment` / `sectorTop10` |
+| ⚡ **涨停梯队**（默认） | 连板梯队 + 市场情绪温度计 + 强势板块 TOP10（板块口径三选一：**同花顺概念板块**(默认，同花顺官方板块指数口径) / 通达信主题板块 / 东财概念题材；整卡点主平台 / 右下角标签点副平台） | `#ztCard` | `kline_ref.js`<br>`year_kline.js`<br>`ths_sector_ref.js`<br>`tdx_sector_ref.js`<br>`sector_ref.js` | `gen_gain_board.py`（year_kline）<br>`fetch_ths_blocks.py`（同花顺板块指数口径）<br>`fetch_tdx_blocks.py`（通达信主题板块）<br>`gen_sector_ref.py`（东财概念映射 + 双平台板块代码）<br>+ 页面内 `ztCompute` / `ztSentiment` / `sectorTop10` |
 | 🚀 **涨幅榜** | 多周期涨幅排行 + 趋势分类 + 入场信号 | `#gainCard` | `gain_board.js`<br>`year_kline.js`<br>`kline_ref.js` | `gen_gain_board.py`<br>+ 页面内趋势 / 信号计算 |
 | 📋 **选股器** | 强势股池 + 回踩评分 + V2.1 买点 | `#filters` `#cards` `#blkCard`<br>`.list-card` `#bd21Card` `.pull-cards` | `strong_data.js`<br>`kline_ref.js`<br>`buydian_v21_data.js` | `compute_strong.py`<br>`compute_buydian_v21.py`<br>`gen_buydian_v21_page.py` |
 
@@ -117,6 +117,38 @@
 > 两份代码表都**不是硬依赖**：缺哪个，对应的入口就不渲染，不会报错。
 > `fetch_ths_codes.py` 里有一张人工核对的 `ALIAS` 别名表，要扩覆盖率改那里。
 > 日常更新若要刷新，重跑上面三个脚本后 `python3 rebuild_gz.py --targets . dist_strong` 重新压缩。
+>
+> **`tdx_sector_ref.js`（通达信主题板块，供「强势板块 TOP10」切换口径用）**同样不在这 9 步里：
+> ```bash
+> python3 fetch_tdx_blocks.py            # tdx_sector_ref.js + data/out/tdx_blocks.json（增量，命中过的名字走缓存）
+> python3 fetch_tdx_blocks.py --rebuild  # 忽略缓存全量重探
+> ```
+> 数据源是**通达信官方 Web 网关 TQLEX**（`page.tdx.com.cn:7615`，与通达信客户端 F10「主题板块」页同一上游，
+> **无需授权/密钥**）。该接口只能**按板块名精确查询、没有公开的列表接口**，所以脚本用「候选名探测」重建板块全集：
+> 拿我们自己的 401 个概念名 + 同花顺概念名 + 人工补充的常见题材名共 626 个逐个探测，命中 305 个 →
+> 去重 + 剔除「最近多板/近期新高/次新股/摘帽」等交易事件榜 → 保留 **288 个主题板块 / 覆盖 5161 只**。
+> 想扩覆盖率就往脚本里的 `EXTRA` 列表加名字，或用 `--rebuild` 重探。
+>
+> **`ths_sector_ref.js`（同花顺概念板块，默认口径）**同样不在这 9 步里：
+> ```bash
+> python3 fetch_ths_blocks.py            # ths_sector_ref.js + data/out/ths_blocks.json（增量，7 天内走缓存）
+> python3 fetch_ths_blocks.py --rebuild  # 忽略缓存全量重抓
+> python3 fetch_ths_blocks.py --verify   # 自检：拿免费可抓全的小板块成分股与同花顺字段对拍
+> ```
+> 数据源是**同花顺公开行情桥 `d.10jqka.com.cn`**（与同花顺 App 同一数据源，**无需登录/授权/Cookie**），
+> 走 `/v6/realhead/48_<板块指数代码>/defer/last.js`，一次拿全 **361 个概念板块**的官方统计：
+> 成分股数、上涨/下跌家数、**涨停家数**、首板、连板、成交额、涨跌幅、振幅。板块指数代码从
+> 概念页的 `<input id="clid">` 取（`885xxx` / `886xxx`）。
+>
+> ⚠️ **为什么不用「抓成分股自己算」**：同花顺概念成分股页非登录态只开放前 5 页（50 只），
+> 第 6 页 302 跳 `/account/login/`；而 ajax 翻页接口被 chameleon 风控（401）+ nginx（403）拦死。
+> 机器人概念有 1230 只、人工智能 1090 只，抓不全就只能拿到「涨幅前 50」这种**有偏样本**，
+> 算涨停率会严重失真 —— 所以改用同花顺自己的板块指数统计，反而更权威、覆盖全。
+>
+> 字段语义已**逐只对拍验证**（`--verify`）：取 6 个成分股 ≤50 只的板块抓全成分股自算，
+> 成分股数 6/6 全等、涨停家数 6/6 全等；再用 `tdx_sector_ref.js` 里**独立成分**的同名板块交叉验证
+> 大板块（华为概念 13=13、机器人概念 13=13、商业航天 12=12、汽车电子 9=9、无人机 9=9）。
+> 涨跌家数差 0~7 只，差在同花顺口径含北交所/停牌股而我们不含。
 
 > ⚠️ 三个模块各读不同数据源，**改动数据合并逻辑后必须逐个视图验证**，只验一个视图会漏（2026-09-03 教训）。详见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
@@ -167,7 +199,9 @@ python3 compute_buydian_v21.py   # V2.1 买点分级
 python3 gen_gain_board.py        # 涨幅榜 + year_kline
 python3 fetch_block_codes.py      # 概念名 → 东财板块代码（卡片主入口跳转，离线跑一次）
 python3 fetch_ths_codes.py        # 概念名 → 同花顺概念代码（卡片副入口，离线跑一次）
-python3 gen_sector_ref.py        # 概念题材映射（涨停梯队「强势板块 TOP10」）
+python3 gen_sector_ref.py        # 东财概念题材映射（涨停梯队「强势板块 TOP10」口径之一）
+python3 fetch_tdx_blocks.py      # 通达信主题板块映射（同一模块的口径之二; 走通达信官方 TQLEX 网关, 免授权）
+python3 fetch_ths_blocks.py      # 同花顺概念板块（同一模块的默认口径; 走同花顺公开行情桥 d.10jqka.com.cn, 免授权）
 python3 rebuild_gz.py            # 压缩 .gz 数据包
 ```
 
@@ -249,6 +283,7 @@ strong-bulls-screener/
 | `data/out/strong_2026.json` | 逐日强势/回踩计算结果 |
 | `data/out/buydian_v21_daily.json` | 逐日 V2.1 买点分级 |
 | `strong_data.js` / `kline_ref.js` / `year_kline.js` | 网页数据包（`.gz` 优先加载） |
+| `sector_ref.js` / `tdx_sector_ref.js` / `ths_sector_ref.js` | 板块数据包（东财概念归属 / 通达信主题归属 / 同花顺官方板块指数统计），懒加载，`.gz` 优先 |
 | `gain_board.js` / `buydian_v21_data.js` | 涨幅榜 / 买点数据包 |
 
 > 为什么不入库：合计 1GB+，且随时可由脚本重建。仓库只保留源码，clone 后体积约 6MB。
